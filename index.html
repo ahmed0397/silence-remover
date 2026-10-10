@@ -2657,68 +2657,250 @@
             }
         }
 
-        initMiniGame();
+        // Client-Side FFmpeg.wasm Engine for Vercel & Static Hosting
+        let ffmpegLoaded = false;
+        async function loadFFmpegClient() {
+            if (ffmpegLoaded) return true;
+            setStatus("Loading high-performance WebAssembly engine...", 12);
+            appendLog("Initializing in-browser FFmpeg.wasm runtime...");
+            
+            ffmpegInst.on('log', ({ message }) => {
+                if (message) {
+                    appendLog(message);
+                }
+            });
 
-        // --- SILENCE REMOVAL EXECUTOR (Automatic vs Advanced) ---
+            ffmpegInst.on('progress', ({ progress }) => {
+                if (progress > 0 && progress <= 1) {
+                    const pct = Math.round(50 + progress * 45);
+                    setStatus(`Cutting silence and exporting: ${Math.round(progress * 100)}%`, pct);
+                }
+            });
+
+            try {
+                // Try loading from same-origin /ffmpeg-core/ first
+                const baseURL = window.location.origin + '/ffmpeg-core';
+                try {
+                    await ffmpegInst.load({
+                        coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
+                        wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm')
+                    });
+                } catch (localErr) {
+                    // Fallback to CDN if local files are blocked or missing
+                    appendLog("Loading WASM core from CDN fallback...");
+                    const cdnURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm';
+                    await ffmpegInst.load({
+                        coreURL: await toBlobURL(`${cdnURL}/ffmpeg-core.js`, 'text/javascript'),
+                        wasmURL: await toBlobURL(`${cdnURL}/ffmpeg-core.wasm`, 'application/wasm')
+                    });
+                }
+                ffmpegLoaded = true;
+                appendLog("In-browser WebAssembly engine loaded successfully!");
+                return true;
+            } catch (err) {
+                console.error("FFmpeg load failed:", err);
+                throw new Error("Could not initialize browser WebAssembly engine: " + err.message);
+            }
+        }
+
+        async function processFileInBrowser(mode, threshold, minDuration, padding) {
+            await loadFFmpegClient();
+
+            setStatus("Reading media file into memory...", 20);
+            const inputFileName = 'input_' + Date.now() + (isVideo ? '.mp4' : '.mp3');
+            const outputFileName = 'output_' + Date.now() + (isVideo ? '.mp4' : '.mp3');
+
+            const fileData = await fetchFile(currentFile);
+            await ffmpegInst.writeFile(inputFileName, fileData);
+
+            setStatus("Scanning audio & detecting silent pauses...", 30);
+            appendLog(`Running silence detection (n=${threshold}dB, d=${minDuration}s)...`);
+
+            let silenceLog = '';
+            const logHandler = ({ message }) => {
+                if (message) silenceLog += message + '\n';
+            };
+            ffmpegInst.on('log', logHandler);
+
+            // Pass 1: Silence detect
+            await ffmpegInst.exec([
+                '-i', inputFileName,
+                '-vn',
+                '-af', `silencedetect=n=${threshold}dB:d=${minDuration}`,
+                '-f', 'null',
+                '-'
+            ]);
+
+            ffmpegInst.off('log', logHandler);
+
+            // Parse silence timestamps
+            const silenceSegments = [];
+            const lines = silenceLog.split('\n');
+            let currentStart = null;
+            for (const line of lines) {
+                if (line.includes('silence_start:')) {
+                    const m = line.match(/silence_start:\s+([\d\.]+)/);
+                    if (m) currentStart = parseFloat(m[1]);
+                } else if (line.includes('silence_end:') || line.includes('silence_duration:')) {
+                    const m = line.match(/silence_end:\s+([\d\.]+)/);
+                    if (m && currentStart !== null) {
+                        const sEnd = parseFloat(m[1]);
+                        if (sEnd > currentStart) {
+                            silenceSegments.push({ start: currentStart, end: sEnd });
+                        }
+                        currentStart = null;
+                    }
+                }
+            }
+
+            let totalDuration = fileDuration || 0;
+            const durMatch = silenceLog.match(/Duration:\s+(\d+):(\d+):([\d\.]+)/);
+            if (durMatch) {
+                totalDuration = (parseInt(durMatch[1]) * 3600) + (parseInt(durMatch[2]) * 60) + parseFloat(durMatch[3]);
+            }
+
+            if (currentStart !== null && totalDuration > currentStart) {
+                silenceSegments.push({ start: currentStart, end: totalDuration });
+            }
+
+            if (silenceSegments.length === 0) {
+                return { status: 'no_silence' };
+            }
+
+            // Calculate keep segments
+            const padSec = parseFloat(padding) / 1000;
+            const keepSegments = [];
+            let lastEnd = 0;
+            for (const seg of silenceSegments) {
+                let keepStart = lastEnd;
+                let keepEnd = Math.max(keepStart, seg.start + padSec);
+                if (keepEnd > keepStart + 0.05) {
+                    keepSegments.push({ start: keepStart, end: keepEnd });
+                }
+                lastEnd = Math.max(seg.end - padSec, keepEnd);
+            }
+            if (lastEnd < totalDuration - 0.05) {
+                keepSegments.push({ start: lastEnd, end: totalDuration });
+            }
+
+            setStatus("Cutting silent sections & stitching audio...", 50);
+
+            // Build filter complex
+            let filterComplex = '';
+            let concatInputs = '';
+            for (let i = 0; i < keepSegments.length; i++) {
+                const s = keepSegments[i];
+                if (isVideo) {
+                    filterComplex += `[0:v]trim=start=${s.start.toFixed(3)}:end=${s.end.toFixed(3)},setpts=PTS-STARTPTS[v${i}];`;
+                    filterComplex += `[0:a]atrim=start=${s.start.toFixed(3)}:end=${s.end.toFixed(3)},asetpts=PTS-STARTPTS[a${i}];`;
+                    concatInputs += `[v${i}][a${i}]`;
+                } else {
+                    filterComplex += `[0:a]atrim=start=${s.start.toFixed(3)}:end=${s.end.toFixed(3)},asetpts=PTS-STARTPTS[a${i}];`;
+                    concatInputs += `[a${i}]`;
+                }
+            }
+            filterComplex += `${concatInputs}concat=n=${keepSegments.length}:v=${isVideo ? 1 : 0}:a=1${isVideo ? '[outv][outa]' : '[out]'}`;
+
+            const execArgs = ['-y', '-i', inputFileName, '-filter_complex', filterComplex];
+            if (isVideo) {
+                execArgs.push('-map', '[outv]', '-map', '[outa]', '-preset', 'ultrafast', '-movflags', '+faststart');
+            } else {
+                execArgs.push('-map', '[out]');
+            }
+            execArgs.push(outputFileName);
+
+            await ffmpegInst.exec(execArgs);
+
+            // Read output
+            const outputData = await ffmpegInst.readFile(outputFileName);
+            const mimeType = isVideo ? 'video/mp4' : 'audio/mp3';
+            const blob = new Blob([outputData.buffer], { type: mimeType });
+            const downloadUrl = URL.createObjectURL(blob);
+
+            // Cleanup virtual FS
+            try {
+                await ffmpegInst.deleteFile(inputFileName);
+                await ffmpegInst.deleteFile(outputFileName);
+            } catch (e) {}
+
+            const newDuration = keepSegments.reduce((acc, s) => acc + (s.end - s.start), 0);
+            const savedDuration = Math.max(0, totalDuration - newDuration);
+
+            return {
+                status: 'success',
+                isVideo: isVideo,
+                downloadUrl: downloadUrl,
+                filename: 'silence_removed_' + currentFile.name,
+                originalDuration: totalDuration,
+                newDuration: newDuration,
+                savedDuration: savedDuration
+            };
+        }
+
+        // --- SILENCE REMOVAL EXECUTOR (Hybrid: Server if available, In-Browser for Vercel) ---
         async function executeSilenceRemoval(mode = 'auto') {
             if(!currentFile) return;
             
             controlsPanel.style.display = 'none';
             processingStatus.style.display = 'block';
             if (logConsole) logConsole.textContent = '';
-            if (logDetails) logDetails.open = false; // Keep diagnostics collapsed by default
+            if (logDetails) logDetails.open = false;
             
             startSoundwaveGame();
 
-            // Steady, realistic progress feedback while background FFmpeg runs
-            let simPercent = 8;
-            setStatus("Scanning audio track & speech levels...", simPercent);
-            
-            const progressTimer = setInterval(() => {
-                if (simPercent < 94) {
-                    simPercent += (simPercent < 50 ? 3 : (simPercent < 80 ? 2 : 1));
-                    if (simPercent > 94) simPercent = 94;
-                    let label = "Scanning audio track & speech levels...";
-                    if (simPercent > 25 && simPercent <= 50) label = "Detecting silence & measuring dead air...";
-                    else if (simPercent > 50 && simPercent <= 75) label = "Cutting silent pauses & aligning jump-cuts...";
-                    else if (simPercent > 75) label = "Encoding clean video & synchronizing audio...";
-                    setStatus(label, simPercent);
-                }
-            }, 450);
-
-            // Automatic mode: preset requested by user (-30dB, 0.1s, 0ms buffer)
             const threshold = mode === 'auto' ? '-30' : tSlider.value;
             const minDuration = mode === 'auto' ? '0.1' : dSlider.value;
             const padding = mode === 'auto' ? '0' : pSlider.value;
 
             appendLog(`Processing: ${currentFile.name} | Mode: ${mode.toUpperCase()} (T: ${threshold}dB, D: ${minDuration}s, P: ${padding}ms)`);
 
+            let result = null;
+
             try {
-                const formData = new FormData();
-                formData.append('file', currentFile);
-                formData.append('mode', mode);
-                formData.append('threshold', threshold);
-                formData.append('duration', minDuration);
-                formData.append('padding', padding);
-
-                const response = await fetch('/api/process', {
-                    method: 'POST',
-                    body: formData
-                });
-
-                clearInterval(progressTimer);
-
-                if (!response.ok) {
-                    const errJson = await response.json().catch(() => ({}));
-                    throw new Error(errJson.error || `Server responded with code ${response.status}`);
+                // Try backend API first (for local server)
+                let backendAvailable = false;
+                try {
+                    const testApi = await fetch('/api/process', { method: 'OPTIONS' }).catch(() => null);
+                    if (testApi && testApi.status !== 404) {
+                        backendAvailable = true;
+                    }
+                } catch (e) {
+                    backendAvailable = false;
                 }
 
-                setStatus("Finalizing crisp video cut...", 95);
-                const result = await response.json();
+                if (backendAvailable) {
+                    let simPercent = 8;
+                    setStatus("Scanning audio track & speech levels...", simPercent);
+                    const progressTimer = setInterval(() => {
+                        if (simPercent < 94) {
+                            simPercent += (simPercent < 50 ? 3 : 1);
+                            setStatus("Processing via dedicated engine...", simPercent);
+                        }
+                    }, 450);
+
+                    const formData = new FormData();
+                    formData.append('file', currentFile);
+                    formData.append('mode', mode);
+                    formData.append('threshold', threshold);
+                    formData.append('duration', minDuration);
+                    formData.append('padding', padding);
+
+                    const response = await fetch('/api/process', { method: 'POST', body: formData });
+                    clearInterval(progressTimer);
+                    if (response.ok) {
+                        result = await response.json();
+                    }
+                }
+
+                // If on Vercel or backend returned 404, process directly in the browser!
+                if (!result) {
+                    appendLog("Running high-speed client-side WebAssembly engine directly in browser...");
+                    result = await processFileInBrowser(mode, threshold, minDuration, padding);
+                }
 
                 if (result.status === 'no_silence') {
                     stopSoundwaveGame();
-                    appendLog("No silence detected with current threshold.");
+                    appendLog("No silence detected with current settings.");
                     setStatus("No silence detected.", 100);
                     alert("No silence detected in this file with current settings.");
                     processingStatus.style.display = 'none';
@@ -2726,11 +2908,9 @@
                     return;
                 }
 
-                // Stop the game loop cleanly
                 stopSoundwaveGame();
                 setStatus("Done! Clean cut ready.", 100);
 
-                // Show result section cleanly
                 setTimeout(() => {
                     processingStatus.style.display = 'none';
                     resultSection.style.display = 'block';
@@ -2758,11 +2938,9 @@
                     document.getElementById('newDur').textContent = formatTime(result.newDuration);
                     document.getElementById('savedDur').textContent = formatTime(result.savedDuration) + " Saved";
 
-                    // Hide empty waveform container if not populated
                     const rWfContainer = document.getElementById('resultWaveformContainer');
                     if (rWfContainer) rWfContainer.style.display = 'none';
 
-                    // Smooth Anime.js celebration animation using valid cubicBezier
                     if (typeof anime !== 'undefined') {
                         anime({
                             targets: '#resultSection',
@@ -2771,7 +2949,6 @@
                             duration: 600,
                             easing: 'cubicBezier(0.16, 1, 0.3, 1)'
                         });
-
                         anime({
                             targets: '.stat-item',
                             opacity: [0, 1],
@@ -2788,7 +2965,6 @@
                 }, 300);
 
             } catch (error) {
-                clearInterval(progressTimer);
                 stopSoundwaveGame();
                 console.error("Processing error:", error);
                 const errMsg = error && error.message ? error.message : String(error);
@@ -2798,7 +2974,7 @@
                 setTimeout(() => {
                     processingStatus.style.display = 'none';
                     controlsPanel.style.display = 'block';
-                }, 4000);
+                }, 5000);
             }
         }
 
