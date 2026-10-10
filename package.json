@@ -1,11 +1,11 @@
 {
   "name": "silence-remove-app",
   "version": "1.0.0",
-  "description": "",
-  "main": "server.js",
+  "description": "Free Video & Audio Silence Remover",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node server.js"
+    "dev": "node server.js",
+    "start": "node server.js",
+    "build": "echo 'Static build ready'"
   },
   "keywords": [],
   "author": "",
