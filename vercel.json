@@ -1,9 +1,10 @@
 {
-  "version": 2,
-  "public": true,
   "cleanUrls": true,
   "rewrites": [
-    { "source": "/", "destination": "/index.html" }
+    {
+      "source": "/",
+      "destination": "/index.html"
+    }
   ],
   "headers": [
     {
