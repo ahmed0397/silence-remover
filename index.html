@@ -1967,9 +1967,9 @@
         </div>
     </footer>
 
-    <!-- FFmpeg WASM & Util UMD Scripts -->
-    <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.15/dist/umd/ffmpeg.js"></script>
-    <script src="https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/index.js"></script>
+    <!-- Self-Hosted Same-Origin FFmpeg WASM & Util Scripts (100% Free of CORS / Worker Restrictions) -->
+    <script src="/public/ffmpeg/ffmpeg.js"></script>
+    <script src="/public/ffmpeg/util.js"></script>
 
     <!-- Application Logic (Inline JS) -->
     <script>
@@ -2682,10 +2682,10 @@
             });
 
             try {
-                // In UMD mode, ffmpeg.load() fetches self-contained UMD core files
-                const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
+                // Load completely self-hosted, same-origin core files from /public/ffmpeg/
+                const baseURL = window.location.origin + '/public/ffmpeg';
 
-                appendLog("Fetching WebAssembly core and wasm binary from CDN...");
+                appendLog("Loading same-origin WebAssembly engine assets...");
 
                 const coreBlob = await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript');
                 const wasmBlob = await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm');
