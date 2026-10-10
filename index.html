@@ -1967,14 +1967,15 @@
         </div>
     </footer>
 
-    <!-- Self-Hosted Same-Origin FFmpeg WASM & Util Scripts (100% Free of CORS / Worker Restrictions) -->
+    <!-- Self-Hosted Same-Origin FFmpeg WASM & Util Scripts -->
     <script src="/public/ffmpeg/ffmpeg.js"></script>
     <script src="/public/ffmpeg/util.js"></script>
 
     <!-- Application Logic (Inline JS) -->
     <script>
-        const { FFmpeg } = FFmpegWASM;
-        const { fetchFile, toBlobURL } = FFmpegUtil;
+        const FFmpeg = window.FFmpegWASM ? window.FFmpegWASM.FFmpeg : null;
+        const fetchFile = window.FFmpegUtil ? window.FFmpegUtil.fetchFile : null;
+        const toBlobURL = window.FFmpegUtil ? window.FFmpegUtil.toBlobURL : null;
 
         // Set year
         document.getElementById('year').textContent = new Date().getFullYear();
@@ -2181,7 +2182,14 @@
         let currentFile = null;
         let isVideo = false;
         let fileDuration = 0;
-        const ffmpegInst = new FFmpeg();
+        let ffmpegInst = null;
+        if (FFmpeg) {
+            try {
+                ffmpegInst = new FFmpeg();
+            } catch (e) {
+                console.warn("FFmpeg instance init deferred:", e);
+            }
+        }
 
         // UI Elements
         const dropZone = document.getElementById('dropZone');
@@ -2665,6 +2673,12 @@
         let ffmpegLoaded = false;
         async function loadFFmpegClient() {
             if (ffmpegLoaded) return true;
+            if (!FFmpeg) {
+                throw new Error("FFmpeg WebAssembly library is still loading or failed to load. Please refresh.");
+            }
+            if (!ffmpegInst) {
+                ffmpegInst = new FFmpeg();
+            }
             setStatus("Loading high-performance WebAssembly engine...", 12);
             appendLog("Initializing in-browser FFmpeg.wasm runtime...");
             
