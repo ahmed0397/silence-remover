@@ -628,6 +628,154 @@
             font-weight: 500;
         }
 
+        /* Side-by-Side Comparison Layout */
+        .comparison-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            margin: 24px 0;
+        }
+
+        @media (max-width: 768px) {
+            .comparison-grid {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+        }
+
+        .comparison-card {
+            background: #ffffff;
+            border: 1px solid var(--light-border);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 16px rgba(41, 0, 41, 0.04);
+            display: flex;
+            flex-direction: column;
+            text-align: left;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .comparison-card.card-output {
+            border-color: rgba(223, 55, 167, 0.4);
+            box-shadow: 0 8px 24px rgba(223, 55, 167, 0.09);
+        }
+
+        .comparison-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 14px;
+        }
+
+        .comparison-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 12px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+
+        .pill-original {
+            background: #f4f2f4;
+            color: var(--secondary-border);
+            border: 1px solid var(--light-border);
+        }
+
+        .pill-cleaned {
+            background: #dcfce7;
+            color: #15803d;
+            border: 1px solid #bbf7d0;
+        }
+
+        .comparison-duration {
+            font-family: var(--font-mono);
+            font-weight: 700;
+            font-size: 14px;
+            color: var(--primary-text);
+        }
+
+        .comparison-player-wrap {
+            width: 100%;
+            background: #000;
+            border-radius: 8px;
+            overflow: hidden;
+            min-height: 200px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .comparison-player-wrap.audio-wrap {
+            min-height: 60px;
+            background: #faf9fa;
+        }
+
+        /* Pop-up Modal Experience for Waiting & Mini-Game */
+        .game-modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(20, 0, 24, 0.75);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            z-index: 9999;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            opacity: 0;
+            transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .game-modal-card {
+            background: linear-gradient(180deg, #240029 0%, #17001b 100%);
+            border: 1px solid rgba(223, 55, 167, 0.35);
+            border-radius: 20px;
+            max-width: 580px;
+            width: 100%;
+            padding: 32px 28px 24px;
+            box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5), 0 0 40px rgba(223, 55, 167, 0.2);
+            color: #ffffff;
+            text-align: center;
+            position: relative;
+            transform: scale(0.92) translateY(20px);
+            transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .game-modal-overlay.active {
+            display: flex;
+            opacity: 1;
+        }
+
+        .game-modal-overlay.active .game-modal-card {
+            transform: scale(1) translateY(0);
+        }
+
+        .game-progress-ring-wrap {
+            margin-bottom: 16px;
+        }
+
+        .game-modal-title {
+            font-size: 22px;
+            font-weight: 800;
+            color: #ffffff;
+            margin-bottom: 6px;
+            letter-spacing: -0.02em;
+        }
+
+        .game-modal-subtitle {
+            font-size: 13px;
+            color: #d4ccd4;
+            margin-bottom: 20px;
+        }
+
         .result-section {
             display: none;
             text-align: left;
@@ -675,7 +823,6 @@
         .media-player {
             width: 100%;
             border-radius: 8px;
-            margin-bottom: 24px;
             background: #000;
         }
         
@@ -1682,49 +1829,53 @@
 
                 </div>
 
-                <!-- Beautiful Waiting Experience & Mini-Game -->
-                <div class="processing-status" id="processingStatus" style="background: rgba(255,255,255,0.95); backdrop-filter: blur(12px); border: 1px solid var(--light-border); border-radius: 16px; padding: 28px; box-shadow: 0 16px 40px rgba(41,0,41,0.08); text-align: center;">
-                    
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <span class="processing-dot" style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--primary-action); animation: pulseDot 1.4s infinite ease-in-out;"></span>
-                            <span style="font-weight: 700; font-size: 15px; color: var(--primary-text);">Optimizing Your Content</span>
+                <!-- Pop-up Waiting Experience & Mini-Game Modal -->
+                <div class="game-modal-overlay" id="gameModalOverlay">
+                    <div class="game-modal-card" id="gameModalCard">
+                        <div class="game-progress-ring-wrap">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <span class="processing-dot" style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--primary-action); box-shadow: 0 0 12px var(--primary-action); animation: pulseDot 1.4s infinite ease-in-out;"></span>
+                                    <span style="font-weight: 700; font-size: 15px; color: #ffffff;">Removing Silence & Editing Pauses</span>
+                                </div>
+                                <span id="progressPercent" style="font-family: var(--font-mono); font-weight: 700; font-size: 16px; color: #ffbdd3;">0%</span>
+                            </div>
+
+                            <div class="progress-bar-bg" style="height: 10px; background: rgba(255,255,255,0.1); border-radius: 999px; overflow: hidden; margin-bottom: 12px;">
+                                <div class="progress-bar-fill" id="progressBar" style="height: 100%; width: 0%; background: linear-gradient(90deg, #df37a7, #ff65cd); border-radius: 999px; transition: width 0.3s ease;"></div>
+                            </div>
+
+                            <div class="status-text" id="statusText" style="font-size: 13px; font-weight: 500; color: #d4ccd4; margin-bottom: 8px;">Scanning audio track & speech levels...</div>
+                            <div style="font-size: 12px; color: #ffbdd3; margin-bottom: 18px; display: inline-flex; align-items: center; gap: 6px; background: rgba(223, 55, 167, 0.18); padding: 4px 14px; border-radius: 999px; border: 1px solid rgba(223, 55, 167, 0.3);">
+                                <span>⚡ Cutting dead air in real-time — jump the silence barriers below while you wait!</span>
+                            </div>
                         </div>
-                        <span id="progressPercent" style="font-family: var(--font-mono); font-weight: 700; font-size: 15px; color: var(--primary-action);">0%</span>
-                    </div>
 
-                    <div class="progress-bar-bg" style="height: 10px; background: #f0ebf0; border-radius: 999px; overflow: hidden; margin-bottom: 14px;">
-                        <div class="progress-bar-fill" id="progressBar" style="height: 100%; width: 0%; background: linear-gradient(90deg, #df37a7, #ff65cd); border-radius: 999px; transition: width 0.3s ease;"></div>
-                    </div>
-
-                    <div class="status-text" id="statusText" style="font-size: 14px; font-weight: 500; color: var(--secondary-border); margin-bottom: 10px;">Scanning audio track & speech levels...</div>
-                    <div style="font-size: 12px; color: #886588; margin-bottom: 20px; display: inline-flex; align-items: center; gap: 6px; background: rgba(223, 55, 167, 0.08); padding: 4px 12px; border-radius: 999px;">
-                        <span>🎬 High-definition video re-encoding in progress (~1-2 min for 2 min video) — play below while waiting!</span>
-                    </div>
-
-                    <!-- Mini-Game: Soundwave Jump (To keep user entertained while processing) -->
-                    <div id="miniGameContainer" style="background: #1d0022; border-radius: 14px; padding: 16px; color: #fff; margin-top: 10px; box-shadow: inset 0 2px 8px rgba(0,0,0,0.4); text-align: center;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 12px;">
-                            <span style="font-weight: 600; color: #ffbdd3; text-transform: uppercase; letter-spacing: 0.08em;">🎮 Mini-Game: Spacebar or Tap to Jump Pauses!</span>
-                            <span style="font-family: var(--font-mono); color: #fff;">Score: <strong id="gameScore" style="color: var(--primary-action);">0</strong></span>
+                        <!-- Mini-Game: Soundwave Jump -->
+                        <div id="miniGameContainer" style="background: #110015; border: 1px solid rgba(223, 55, 167, 0.25); border-radius: 14px; padding: 16px; color: #fff; margin-top: 6px; box-shadow: inset 0 2px 10px rgba(0,0,0,0.6); text-align: center;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 12px;">
+                                <span style="font-weight: 600; color: #ffbdd3; text-transform: uppercase; letter-spacing: 0.08em;">🎮 Soundwave Jump: Tap or Space to Leap!</span>
+                                <span style="font-family: var(--font-mono); color: #fff;">Score: <strong id="gameScore" style="color: var(--primary-action); font-size: 14px;">0</strong></span>
+                            </div>
+                            <canvas id="gameCanvas" width="520" height="110" style="width: 100%; max-width: 520px; height: 110px; background: #0c000f; border-radius: 8px; display: block; margin: 0 auto; cursor: pointer; border: 1px solid rgba(255,255,255,0.06);"></canvas>
+                            <div style="font-size: 11px; color: #bbadbb; margin-top: 10px;">Tap anywhere or press <kbd style="background: rgba(255,255,255,0.18); padding: 2px 6px; border-radius: 4px; color: #fff; font-family: var(--font-mono);">Spacebar</kbd> to jump over red silence blocks</div>
                         </div>
-                        <canvas id="gameCanvas" width="560" height="110" style="width: 100%; max-width: 560px; height: 110px; background: #130017; border-radius: 8px; display: block; margin: 0 auto; cursor: pointer;"></canvas>
-                        <div style="font-size: 11px; color: #d4ccd4; margin-top: 8px;">Tap the screen or press <kbd style="background: rgba(255,255,255,0.15); padding: 2px 6px; border-radius: 4px;">Space</kbd> to jump over silence barriers</div>
-                    </div>
 
-                    <!-- Hidden technical log drawer for developers only -->
-                    <div style="margin-top: 16px; text-align: left; opacity: 0.6;">
-                        <details id="logDetails" style="font-size: 11px;">
-                            <summary style="cursor: pointer; color: var(--secondary-border); font-weight: 500;">Diagnostics & Technical Feed</summary>
-                            <pre id="logConsole" style="background: #18001c; color: #a5f3fc; padding: 8px; border-radius: 6px; margin-top: 6px; height: 90px; overflow-y: auto; font-family: var(--font-mono); font-size: 10px; white-space: pre-wrap; word-break: break-all;"></pre>
-                        </details>
+                        <!-- Diagnostics Drawer -->
+                        <div style="margin-top: 14px; text-align: left; opacity: 0.5;">
+                            <details id="logDetails" style="font-size: 11px;">
+                                <summary style="cursor: pointer; color: #d4ccd4; font-weight: 500;">Diagnostics & Technical Feed</summary>
+                                <pre id="logConsole" style="background: #0d0010; color: #a5f3fc; padding: 8px; border-radius: 6px; margin-top: 6px; height: 70px; overflow-y: auto; font-family: var(--font-mono); font-size: 10px; white-space: pre-wrap; word-break: break-all; border: 1px solid rgba(255,255,255,0.08);"></pre>
+                            </details>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Result Section -->
+                <!-- Result Section: Side-by-Side Comparison -->
                 <div class="result-section" id="resultSection">
                     <div class="result-header">
-                        <div class="badge">✓ Silence Removed Successfully</div>
+                        <div class="badge" style="background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; font-weight: 600;">✓ Silence Removed Successfully</div>
+                        <span style="font-size: 13px; color: var(--secondary-border); font-weight: 500;">Compare Before & After Below</span>
                     </div>
                     
                     <div class="result-stats">
@@ -1742,17 +1893,38 @@
                         </div>
                     </div>
 
-                    <div class="waveform-container" id="resultWaveformContainer" style="display: block; margin-bottom: 24px;">
+                    <!-- Side-by-Side Comparison Grid -->
+                    <div class="comparison-grid" id="comparisonGrid">
+                        <!-- Left Card: Original Input -->
+                        <div class="comparison-card card-input">
+                            <div class="comparison-header">
+                                <span class="comparison-pill pill-original">Original File</span>
+                                <span class="comparison-duration" id="originalCardDur">--:--</span>
+                            </div>
+                            <div class="comparison-player-wrap" id="comparisonInputWrapper">
+                                <!-- Original player cloned/injected here -->
+                            </div>
+                        </div>
+
+                        <!-- Right Card: Silence-Removed Output -->
+                        <div class="comparison-card card-output">
+                            <div class="comparison-header">
+                                <span class="comparison-pill pill-cleaned">⚡ Cleaned Cut</span>
+                                <span class="comparison-duration" id="outputCardDur" style="color: var(--primary-action);">--:--</span>
+                            </div>
+                            <div class="comparison-player-wrap" id="comparisonOutputWrapper">
+                                <!-- Cleaned player injected here -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="waveform-container" id="resultWaveformContainer" style="display: none; margin-bottom: 24px;">
                         <canvas class="waveform-canvas" id="resultWaveform"></canvas>
                     </div>
 
-                    <div id="playerContainer">
-                        <!-- Player injected via JS -->
-                    </div>
-
-                    <div class="result-actions">
-                        <button class="btn btn-primary" id="downloadBtn">Download Processed File</button>
-                        <button class="btn btn-ghost" id="resetBtn">Process Another File</button>
+                    <div class="result-actions" style="margin-top: 24px;">
+                        <button class="btn btn-primary" id="downloadBtn" style="font-size: 16px; padding: 16px;">Download Cleaned File</button>
+                        <button class="btn btn-ghost" id="resetBtn" style="font-size: 16px; padding: 16px;">Process Another File</button>
                     </div>
                 </div>
 
@@ -2509,7 +2681,9 @@
             });
 
             window.addEventListener('keydown', (e) => {
-                if (e.code === 'Space' && processingStatus && processingStatus.style.display !== 'none') {
+                const overlay = document.getElementById('gameModalOverlay');
+                const isModalOpen = overlay && overlay.classList.contains('active');
+                if (e.code === 'Space' && (isModalOpen || (processingStatus && processingStatus.style.display !== 'none'))) {
                     e.preventDefault();
                     triggerJump();
                 }
@@ -2857,7 +3031,23 @@
             if(!currentFile) return;
             
             controlsPanel.style.display = 'none';
-            processingStatus.style.display = 'block';
+            
+            // Pop-up Animated Modal Experience for Mini-Game & Progress
+            const gameModalOverlay = document.getElementById('gameModalOverlay');
+            if (gameModalOverlay) {
+                gameModalOverlay.classList.add('active');
+                if (typeof anime !== 'undefined') {
+                    anime({
+                        targets: '#gameModalCard',
+                        scale: [0.88, 1],
+                        opacity: [0, 1],
+                        translateY: [30, 0],
+                        duration: 450,
+                        easing: 'cubicBezier(0.16, 1, 0.3, 1)'
+                    });
+                }
+            }
+
             if (logConsole) logConsole.textContent = '';
             if (logDetails) logDetails.open = false;
             
@@ -2918,7 +3108,7 @@
                     appendLog("No silence detected with current settings.");
                     setStatus("No silence detected.", 100);
                     alert("No silence detected in this file with current settings.");
-                    processingStatus.style.display = 'none';
+                    if (gameModalOverlay) gameModalOverlay.classList.remove('active');
                     controlsPanel.style.display = 'block';
                     return;
                 }
@@ -2926,20 +3116,45 @@
                 stopSoundwaveGame();
                 setStatus("Done! Clean cut ready.", 100);
 
+                // Celebratory Modal Exit Animation
+                if (typeof anime !== 'undefined' && gameModalOverlay) {
+                    anime({
+                        targets: '#gameModalCard',
+                        scale: [1, 1.04, 0.9],
+                        opacity: [1, 0],
+                        duration: 350,
+                        easing: 'easeInOutQuad'
+                    });
+                }
+
                 setTimeout(() => {
-                    processingStatus.style.display = 'none';
+                    if (gameModalOverlay) gameModalOverlay.classList.remove('active');
                     resultSection.style.display = 'block';
                     resultSection.style.opacity = '1';
                     resultSection.style.transform = 'none';
 
-                    const playerContainer = document.getElementById('playerContainer');
-                    playerContainer.innerHTML = '';
-                    const mediaEl = document.createElement(result.isVideo ? 'video' : 'audio');
-                    mediaEl.src = result.downloadUrl;
-                    mediaEl.controls = true;
-                    mediaEl.autoplay = false;
-                    mediaEl.className = 'media-player';
-                    playerContainer.appendChild(mediaEl);
+                    // Populate Side-by-Side Comparison Players
+                    const inputWrapper = document.getElementById('comparisonInputWrapper');
+                    const outputWrapper = document.getElementById('comparisonOutputWrapper');
+                    if (inputWrapper) {
+                        inputWrapper.innerHTML = '';
+                        inputWrapper.className = 'comparison-player-wrap' + (result.isVideo ? '' : ' audio-wrap');
+                        const origEl = document.createElement(result.isVideo ? 'video' : 'audio');
+                        origEl.src = sourceObjectUrl;
+                        origEl.controls = true;
+                        origEl.className = 'media-player';
+                        inputWrapper.appendChild(origEl);
+                    }
+
+                    if (outputWrapper) {
+                        outputWrapper.innerHTML = '';
+                        outputWrapper.className = 'comparison-player-wrap' + (result.isVideo ? '' : ' audio-wrap');
+                        const outEl = document.createElement(result.isVideo ? 'video' : 'audio');
+                        outEl.src = result.downloadUrl;
+                        outEl.controls = true;
+                        outEl.className = 'media-player';
+                        outputWrapper.appendChild(outEl);
+                    }
 
                     const dlBtn = document.getElementById('downloadBtn');
                     dlBtn.onclick = () => {
@@ -2949,27 +3164,37 @@
                         a.click();
                     };
 
-                    document.getElementById('origDur').textContent = formatTime(result.originalDuration);
-                    document.getElementById('newDur').textContent = formatTime(result.newDuration);
-                    document.getElementById('savedDur').textContent = formatTime(result.savedDuration) + " Saved";
+                    const originalFormatted = formatTime(result.originalDuration);
+                    const newFormatted = formatTime(result.newDuration);
+                    const savedFormatted = formatTime(result.savedDuration) + " Saved";
+
+                    document.getElementById('origDur').textContent = originalFormatted;
+                    document.getElementById('newDur').textContent = newFormatted;
+                    document.getElementById('savedDur').textContent = savedFormatted;
+
+                    const origCardDur = document.getElementById('originalCardDur');
+                    const outCardDur = document.getElementById('outputCardDur');
+                    if (origCardDur) origCardDur.textContent = originalFormatted;
+                    if (outCardDur) outCardDur.textContent = newFormatted;
 
                     const rWfContainer = document.getElementById('resultWaveformContainer');
                     if (rWfContainer) rWfContainer.style.display = 'none';
 
+                    // Smooth Anime.js Entrance for Side-by-Side Result Cards
                     if (typeof anime !== 'undefined') {
                         anime({
                             targets: '#resultSection',
                             opacity: [0, 1],
-                            translateY: [25, 0],
-                            duration: 600,
+                            translateY: [30, 0],
+                            duration: 650,
                             easing: 'cubicBezier(0.16, 1, 0.3, 1)'
                         });
                         anime({
-                            targets: '.stat-item',
+                            targets: ['.stat-item', '.comparison-card'],
                             opacity: [0, 1],
-                            scale: [0.9, 1],
+                            scale: [0.94, 1],
                             delay: anime.stagger(100),
-                            duration: 500,
+                            duration: 600,
                             easing: 'cubicBezier(0.16, 1, 0.3, 1)'
                         });
                     }
@@ -2977,19 +3202,19 @@
                     setTimeout(() => {
                         resultSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
                     }, 100);
-                }, 300);
+                }, 400);
 
             } catch (error) {
                 stopSoundwaveGame();
+                if (gameModalOverlay) gameModalOverlay.classList.remove('active');
                 console.error("Processing error:", error);
                 const errMsg = error && error.message ? error.message : String(error);
                 appendLog(`ERROR: ${errMsg}`);
                 statusText.innerHTML = `<strong>Error during processing:</strong> ${errMsg}`;
                 statusText.style.color = "#ef4444";
                 setTimeout(() => {
-                    processingStatus.style.display = 'none';
                     controlsPanel.style.display = 'block';
-                }, 5000);
+                }, 4000);
             }
         }
 
