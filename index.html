@@ -2678,22 +2678,22 @@
             });
 
             try {
-                // Try loading from same-origin /ffmpeg-core/ first
-                const baseURL = window.location.origin + '/ffmpeg-core';
-                try {
-                    await ffmpegInst.load({
-                        coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-                        wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm')
-                    });
-                } catch (localErr) {
-                    // Fallback to CDN if local files are blocked or missing
-                    appendLog("Loading WASM core from CDN fallback...");
-                    const cdnURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm';
-                    await ffmpegInst.load({
-                        coreURL: await toBlobURL(`${cdnURL}/ffmpeg-core.js`, 'text/javascript'),
-                        wasmURL: await toBlobURL(`${cdnURL}/ffmpeg-core.wasm`, 'application/wasm')
-                    });
-                }
+                // To bypass browser Cross-Origin Worker restrictions, all worker scripts must be converted to local Blob URLs
+                const ffmpegPkgURL = 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.15/dist/esm';
+                const corePkgURL = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/esm';
+
+                appendLog("Fetching WebAssembly worker & core modules into local memory blobs...");
+
+                const classWorkerBlob = await toBlobURL(`${ffmpegPkgURL}/worker.js`, 'text/javascript');
+                const coreBlob = await toBlobURL(`${corePkgURL}/ffmpeg-core.js`, 'text/javascript');
+                const wasmBlob = await toBlobURL(`${corePkgURL}/ffmpeg-core.wasm`, 'application/wasm');
+
+                await ffmpegInst.load({
+                    classWorkerURL: classWorkerBlob,
+                    coreURL: coreBlob,
+                    wasmURL: wasmBlob
+                });
+
                 ffmpegLoaded = true;
                 appendLog("In-browser WebAssembly engine loaded successfully!");
                 return true;
