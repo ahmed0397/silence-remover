@@ -1967,10 +1967,14 @@
         </div>
     </footer>
 
+    <!-- FFmpeg WASM & Util UMD Scripts -->
+    <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.15/dist/umd/ffmpeg.js"></script>
+    <script src="https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/index.js"></script>
+
     <!-- Application Logic (Inline JS) -->
-    <script type="module">
-        import { FFmpeg } from 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.15/+esm';
-        import { fetchFile, toBlobURL } from 'https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.2/+esm';
+    <script>
+        const { FFmpeg } = FFmpegWASM;
+        const { fetchFile, toBlobURL } = FFmpegUtil;
 
         // Set year
         document.getElementById('year').textContent = new Date().getFullYear();
@@ -2678,18 +2682,15 @@
             });
 
             try {
-                // To bypass browser Cross-Origin Worker restrictions, all worker scripts must be converted to local Blob URLs
-                const ffmpegPkgURL = 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.15/dist/esm';
-                const corePkgURL = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/esm';
+                // In UMD mode, ffmpeg.load() fetches self-contained UMD core files
+                const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
 
-                appendLog("Fetching WebAssembly worker & core modules into local memory blobs...");
+                appendLog("Fetching WebAssembly core and wasm binary from CDN...");
 
-                const classWorkerBlob = await toBlobURL(`${ffmpegPkgURL}/worker.js`, 'text/javascript');
-                const coreBlob = await toBlobURL(`${corePkgURL}/ffmpeg-core.js`, 'text/javascript');
-                const wasmBlob = await toBlobURL(`${corePkgURL}/ffmpeg-core.wasm`, 'application/wasm');
+                const coreBlob = await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript');
+                const wasmBlob = await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm');
 
                 await ffmpegInst.load({
-                    classWorkerURL: classWorkerBlob,
                     coreURL: coreBlob,
                     wasmURL: wasmBlob
                 });
