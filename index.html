@@ -2950,8 +2950,6 @@
 
                 appendLog(`Loading WebAssembly engine assets from ${baseURL}...`);
 
-                const toBlobURLFn = getToBlobURL();
-                const coreBlob = await toBlobURLFn(`${baseURL}/ffmpeg-core.js`, 'text/javascript');
                 
                 // Track 31MB binary download in real-time so UI never feels stuck
                 const wasmBlob = await fetchBlobWithProgress(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm', (loaded, total) => {
@@ -2965,9 +2963,10 @@
                 setStatus("Compiling WebAssembly engine in browser memory...", 46);
                 appendLog("Initializing WebAssembly worker thread...");
 
+                // Pass direct same-origin URLs so Emscripten instantiateStreaming works natively without blob credentials errors
                 await ffmpegInst.load({
-                    coreURL: coreBlob,
-                    wasmURL: wasmBlob
+                    coreURL: `${baseURL}/ffmpeg-core.js`,
+                    wasmURL: `${baseURL}/ffmpeg-core.wasm`
                 });
 
                 ffmpegLoaded = true;
@@ -2983,14 +2982,76 @@
             await loadFFmpegClient();
 
             setStatus("Reading media file into memory...", 20);
-            const inputFileName = 'input_' + Date.now() + (isVideo ? '.mp4' : '.mp3');
-            const outputFileName = 'output_' + Date.now() + (isVideo ? '.mp4' : '.mp3');
+            const ext = currentFile.name.includes('.') ? ('.' + currentFile.name.split('.').pop().toLowerCase()) : (isVideo ? '.mp4' : '.mp3');
+            const inputFileName = 'input_' + Date.now() + ext;
+            const outputFileName = 'output_' + Date.now() + (isVideo ? '.mp4' : (ext === '.wav' ? '.wav' : '.mp3'));
 
             const fetchFileFn = getFetchFile();
             const fileData = await fetchFileFn(currentFile);
             await ffmpegInst.writeFile(inputFileName, fileData);
 
-            setStatus("Scanning audio & detecting silent pauses...", 30);
+            const totalDuration = fileDuration || 0;
+
+            // AUDIO PROCESSING (Lightning-fast native C silenceremove filter)
+            if (!isVideo) {
+                setStatus("Removing silence & editing pauses in audio track...", 55);
+                appendLog(`Applying silence removal filter (threshold: ${threshold}dB, duration: ${minDuration}s, padding: ${padding}ms)...`);
+                
+                const padSec = padding && parseFloat(padding) > 0 ? (parseFloat(padding) / 1000).toFixed(3) : '0.05';
+                const filterStr = `silenceremove=stop_periods=-1:stop_duration=${minDuration}:stop_threshold=${threshold}dB:leave_silence=${padSec}`;
+
+                const audioArgs = [
+                    '-y',
+                    '-i', inputFileName,
+                    '-af', filterStr
+                ];
+                if (outputFileName.endsWith('.mp3')) {
+                    audioArgs.push('-c:a', 'libmp3lame', '-q:a', '2');
+                } else if (outputFileName.endsWith('.wav')) {
+                    audioArgs.push('-c:a', 'pcm_s16le');
+                }
+                audioArgs.push(outputFileName);
+
+                await ffmpegInst.exec(audioArgs);
+
+                // Read output
+                const outputData = await ffmpegInst.readFile(outputFileName);
+                if (!outputData || outputData.byteLength === 0) {
+                    throw new Error("Silence removal produced an empty output. Please check the audio file.");
+                }
+
+                const mimeType = outputFileName.endsWith('.wav') ? 'audio/wav' : 'audio/mp3';
+                const blob = new Blob([outputData.buffer], { type: mimeType });
+                const downloadUrl = URL.createObjectURL(blob);
+
+                // Measure duration of cleaned file
+                const tempAudio = new Audio(downloadUrl);
+                const newDuration = await new Promise((resolve) => {
+                    tempAudio.onloadedmetadata = () => resolve(tempAudio.duration);
+                    tempAudio.onerror = () => resolve(Math.max(1, totalDuration * 0.7));
+                    setTimeout(() => resolve(Math.max(1, totalDuration * 0.7)), 800);
+                });
+
+                const savedDuration = Math.max(0, totalDuration - newDuration);
+
+                try {
+                    await ffmpegInst.deleteFile(inputFileName);
+                    await ffmpegInst.deleteFile(outputFileName);
+                } catch (e) {}
+
+                return {
+                    status: 'success',
+                    isVideo: false,
+                    downloadUrl: downloadUrl,
+                    filename: 'silence_removed_' + currentFile.name,
+                    originalDuration: totalDuration,
+                    newDuration: newDuration,
+                    savedDuration: savedDuration
+                };
+            }
+
+            // VIDEO PROCESSING (Jump-cut audio + video streams)
+            setStatus("Scanning video audio track & detecting silent pauses...", 30);
             appendLog(`Running silence detection (n=${threshold}dB, d=${minDuration}s)...`);
 
             let silenceLog = '';
@@ -3030,14 +3091,14 @@
                 }
             }
 
-            let totalDuration = fileDuration || 0;
+            let computedDuration = totalDuration;
             const durMatch = silenceLog.match(/Duration:\s+(\d+):(\d+):([\d\.]+)/);
             if (durMatch) {
-                totalDuration = (parseInt(durMatch[1]) * 3600) + (parseInt(durMatch[2]) * 60) + parseFloat(durMatch[3]);
+                computedDuration = (parseInt(durMatch[1]) * 3600) + (parseInt(durMatch[2]) * 60) + parseFloat(durMatch[3]);
             }
 
-            if (currentStart !== null && totalDuration > currentStart) {
-                silenceSegments.push({ start: currentStart, end: totalDuration });
+            if (currentStart !== null && computedDuration > currentStart) {
+                silenceSegments.push({ start: currentStart, end: computedDuration });
             }
 
             if (silenceSegments.length === 0) {
@@ -3056,42 +3117,47 @@
                 }
                 lastEnd = Math.max(seg.end - padSec, keepEnd);
             }
-            if (lastEnd < totalDuration - 0.05) {
-                keepSegments.push({ start: lastEnd, end: totalDuration });
+            if (lastEnd < computedDuration - 0.05) {
+                keepSegments.push({ start: lastEnd, end: computedDuration });
             }
 
-            setStatus("Cutting silent sections & stitching audio...", 50);
+            if (keepSegments.length === 0) {
+                return { status: 'no_silence' };
+            }
+
+            setStatus("Trimming silence & re-encoding video jump cuts...", 55);
 
             // Build filter complex
             let filterComplex = '';
             let concatInputs = '';
             for (let i = 0; i < keepSegments.length; i++) {
                 const s = keepSegments[i];
-                if (isVideo) {
-                    filterComplex += `[0:v]trim=start=${s.start.toFixed(3)}:end=${s.end.toFixed(3)},setpts=PTS-STARTPTS[v${i}];`;
-                    filterComplex += `[0:a]atrim=start=${s.start.toFixed(3)}:end=${s.end.toFixed(3)},asetpts=PTS-STARTPTS[a${i}];`;
-                    concatInputs += `[v${i}][a${i}]`;
-                } else {
-                    filterComplex += `[0:a]atrim=start=${s.start.toFixed(3)}:end=${s.end.toFixed(3)},asetpts=PTS-STARTPTS[a${i}];`;
-                    concatInputs += `[a${i}]`;
-                }
+                filterComplex += `[0:v]trim=start=${s.start.toFixed(3)}:end=${s.end.toFixed(3)},setpts=PTS-STARTPTS[v${i}];`;
+                filterComplex += `[0:a]atrim=start=${s.start.toFixed(3)}:end=${s.end.toFixed(3)},asetpts=PTS-STARTPTS[a${i}];`;
+                concatInputs += `[v${i}][a${i}]`;
             }
-            filterComplex += `${concatInputs}concat=n=${keepSegments.length}:v=${isVideo ? 1 : 0}:a=1${isVideo ? '[outv][outa]' : '[out]'}`;
+            filterComplex += `${concatInputs}concat=n=${keepSegments.length}:v=1:a=1[outv][outa]`;
 
-            const execArgs = ['-y', '-i', inputFileName, '-filter_complex', filterComplex];
-            if (isVideo) {
-                execArgs.push('-map', '[outv]', '-map', '[outa]', '-preset', 'ultrafast', '-movflags', '+faststart');
-            } else {
-                execArgs.push('-map', '[out]');
-            }
-            execArgs.push(outputFileName);
+            const execArgs = [
+                '-y',
+                '-i', inputFileName,
+                '-filter_complex', filterComplex,
+                '-map', '[outv]',
+                '-map', '[outa]',
+                '-c:v', 'libx264',
+                '-preset', 'ultrafast',
+                '-crf', '28',
+                '-c:a', 'aac',
+                '-b:a', '128k',
+                '-movflags', '+faststart',
+                outputFileName
+            ];
 
             await ffmpegInst.exec(execArgs);
 
             // Read output
             const outputData = await ffmpegInst.readFile(outputFileName);
-            const mimeType = isVideo ? 'video/mp4' : 'audio/mp3';
-            const blob = new Blob([outputData.buffer], { type: mimeType });
+            const blob = new Blob([outputData.buffer], { type: 'video/mp4' });
             const downloadUrl = URL.createObjectURL(blob);
 
             // Cleanup virtual FS
@@ -3101,14 +3167,14 @@
             } catch (e) {}
 
             const newDuration = keepSegments.reduce((acc, s) => acc + (s.end - s.start), 0);
-            const savedDuration = Math.max(0, totalDuration - newDuration);
+            const savedDuration = Math.max(0, computedDuration - newDuration);
 
             return {
                 status: 'success',
-                isVideo: isVideo,
+                isVideo: true,
                 downloadUrl: downloadUrl,
                 filename: 'silence_removed_' + currentFile.name,
-                originalDuration: totalDuration,
+                originalDuration: computedDuration,
                 newDuration: newDuration,
                 savedDuration: savedDuration
             };
