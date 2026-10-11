@@ -617,9 +617,17 @@
 
         .progress-bar-fill {
             height: 100%;
-            background: var(--primary-action);
+            background: linear-gradient(90deg, #df37a7 0%, #ff65cd 50%, #df37a7 100%);
+            background-size: 200% 100%;
+            animation: shimmerBar 2s linear infinite;
             width: 0%;
             transition: width 0.3s ease;
+            box-shadow: 0 0 14px rgba(223, 55, 167, 0.6);
+        }
+
+        @keyframes shimmerBar {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
         }
 
         .status-text {
@@ -2145,9 +2153,37 @@
 
     <!-- Application Logic (Inline JS) -->
     <script>
-        const FFmpeg = window.FFmpegWASM ? window.FFmpegWASM.FFmpeg : null;
-        const fetchFile = window.FFmpegUtil ? window.FFmpegUtil.fetchFile : null;
-        const toBlobURL = window.FFmpegUtil ? window.FFmpegUtil.toBlobURL : null;
+        function getFFmpeg() { return window.FFmpegWASM ? window.FFmpegWASM.FFmpeg : null; }
+        function getFetchFile() { return window.FFmpegUtil ? window.FFmpegUtil.fetchFile : null; }
+        function getToBlobURL() { return window.FFmpegUtil ? window.FFmpegUtil.toBlobURL : null; }
+
+        async function ensureFFmpegScriptsLoaded() {
+            if (window.FFmpegWASM && window.FFmpegUtil) return true;
+            
+            const candidates = [
+                '/public/ffmpeg/',
+                'public/ffmpeg/',
+                '/ffmpeg/'
+            ];
+
+            const loadScript = (src) => new Promise((resolve, reject) => {
+                const s = document.createElement('script');
+                s.src = src;
+                s.onload = () => resolve();
+                s.onerror = (e) => reject(e);
+                document.head.appendChild(s);
+            });
+
+            for (const base of candidates) {
+                try {
+                    if (!window.FFmpegWASM) await loadScript(base + 'ffmpeg.js');
+                    if (!window.FFmpegUtil) await loadScript(base + 'util.js');
+                    if (window.FFmpegWASM && window.FFmpegUtil) break;
+                } catch (e) {}
+            }
+
+            return !!(window.FFmpegWASM && window.FFmpegUtil);
+        }
 
         // Set year
         document.getElementById('year').textContent = new Date().getFullYear();
@@ -2843,17 +2879,50 @@
             }
         }
 
+        async function fetchBlobWithProgress(url, mimeType, onProgress) {
+            const resp = await fetch(url);
+            if (!resp.ok) {
+                throw new Error(`Failed to load ${url} (HTTP ${resp.status})`);
+            }
+            const contentLength = resp.headers.get('content-length');
+            const totalBytes = contentLength ? parseInt(contentLength, 10) : 0;
+
+            if (!resp.body || totalBytes === 0) {
+                const blob = await resp.blob();
+                return URL.createObjectURL(blob);
+            }
+
+            const reader = resp.body.getReader();
+            let loadedBytes = 0;
+            const chunks = [];
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                chunks.push(value);
+                loadedBytes += value.length;
+                if (onProgress && totalBytes > 0) {
+                    onProgress(loadedBytes, totalBytes);
+                }
+            }
+
+            const blob = new Blob(chunks, { type: mimeType });
+            return URL.createObjectURL(blob);
+        }
+
         // Client-Side FFmpeg.wasm Engine for Vercel & Static Hosting
         let ffmpegLoaded = false;
         async function loadFFmpegClient() {
             if (ffmpegLoaded) return true;
-            if (!FFmpeg) {
+            await ensureFFmpegScriptsLoaded();
+            const FFmpegClass = getFFmpeg();
+            if (!FFmpegClass) {
                 throw new Error("FFmpeg WebAssembly library is still loading or failed to load. Please refresh.");
             }
             if (!ffmpegInst) {
-                ffmpegInst = new FFmpeg();
+                ffmpegInst = new FFmpegClass();
             }
-            setStatus("Loading high-performance WebAssembly engine...", 12);
+            setStatus("Preparing high-performance WebAssembly engine...", 10);
             appendLog("Initializing in-browser FFmpeg.wasm runtime...");
             
             ffmpegInst.on('log', ({ message }) => {
@@ -2870,13 +2939,31 @@
             });
 
             try {
-                // Load completely self-hosted, same-origin core files from /public/ffmpeg/
-                const baseURL = window.location.origin + '/public/ffmpeg';
+                // Determine base URL: try /public/ffmpeg first, fallback to /ffmpeg
+                let baseURL = window.location.origin + '/public/ffmpeg';
+                try {
+                    const testResp = await fetch(`${baseURL}/ffmpeg-core.js`, { method: 'HEAD' });
+                    if (!testResp.ok) baseURL = window.location.origin + '/ffmpeg';
+                } catch (e) {
+                    baseURL = window.location.origin + '/ffmpeg';
+                }
 
-                appendLog("Loading same-origin WebAssembly engine assets...");
+                appendLog(`Loading WebAssembly engine assets from ${baseURL}...`);
 
-                const coreBlob = await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript');
-                const wasmBlob = await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm');
+                const toBlobURLFn = getToBlobURL();
+                const coreBlob = await toBlobURLFn(`${baseURL}/ffmpeg-core.js`, 'text/javascript');
+                
+                // Track 31MB binary download in real-time so UI never feels stuck
+                const wasmBlob = await fetchBlobWithProgress(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm', (loaded, total) => {
+                    const mbLoaded = (loaded / (1024 * 1024)).toFixed(1);
+                    const mbTotal = (total / (1024 * 1024)).toFixed(1);
+                    const percent = Math.round((loaded / total) * 100);
+                    const barPct = Math.round(10 + (loaded / total) * 35);
+                    setStatus(`Downloading WebAssembly AI Engine: ${mbLoaded}MB / ${mbTotal}MB (${percent}%)`, barPct);
+                });
+
+                setStatus("Compiling WebAssembly engine in browser memory...", 46);
+                appendLog("Initializing WebAssembly worker thread...");
 
                 await ffmpegInst.load({
                     coreURL: coreBlob,
@@ -2899,7 +2986,8 @@
             const inputFileName = 'input_' + Date.now() + (isVideo ? '.mp4' : '.mp3');
             const outputFileName = 'output_' + Date.now() + (isVideo ? '.mp4' : '.mp3');
 
-            const fileData = await fetchFile(currentFile);
+            const fetchFileFn = getFetchFile();
+            const fileData = await fetchFileFn(currentFile);
             await ffmpegInst.writeFile(inputFileName, fileData);
 
             setStatus("Scanning audio & detecting silent pauses...", 30);
@@ -3062,15 +3150,18 @@
             let result = null;
 
             try {
-                // Try backend API first (for local server)
+                // Try backend API only if running on local development server
                 let backendAvailable = false;
-                try {
-                    const testApi = await fetch('/api/process', { method: 'OPTIONS' }).catch(() => null);
-                    if (testApi && testApi.status !== 404) {
-                        backendAvailable = true;
+                const isLocalServer = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+                if (isLocalServer) {
+                    try {
+                        const testApi = await fetch('/api/process', { method: 'OPTIONS' }).catch(() => null);
+                        if (testApi && testApi.status === 200) {
+                            backendAvailable = true;
+                        }
+                    } catch (e) {
+                        backendAvailable = false;
                     }
-                } catch (e) {
-                    backendAvailable = false;
                 }
 
                 if (backendAvailable) {
