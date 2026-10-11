@@ -2177,7 +2177,7 @@
         let currentFile = null;
         let isVideo = false;
         let fileDuration = 0;
-        const ffmpegInst = new FFmpeg();
+        let ffmpegInst = null;
 
         // UI Elements
         const dropZone = document.getElementById('dropZone');
@@ -2662,12 +2662,24 @@
         let ffmpegLoadPromise = null;
 
         async function initClientFFmpeg() {
-            if (ffmpegLoaded) return;
+            if (ffmpegLoaded && ffmpegInst) return ffmpegInst;
             if (ffmpegLoadPromise) return ffmpegLoadPromise;
 
             ffmpegLoadPromise = (async () => {
                 setStatus("Loading in-browser audio engine (WebAssembly)...", 12);
                 appendLog("Initializing in-browser FFmpeg.wasm engine...");
+
+                // Create worker script via blob URL from same origin so browser never throws cross-origin error
+                const workerScript = `
+                    importScripts('https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.15/dist/umd/ffmpeg.js');
+                `;
+                // Modern @ffmpeg/ffmpeg v0.12 ESM worker URL converted to Blob URL
+                const workerResponse = await fetch('https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.15/dist/esm/worker.js');
+                const workerCode = await workerResponse.text();
+                const workerBlob = new Blob([workerCode], { type: 'text/javascript' });
+                const localWorkerURL = URL.createObjectURL(workerBlob);
+
+                ffmpegInst = new FFmpeg();
 
                 // Subscribe to internal FFmpeg log stream
                 ffmpegInst.on('log', ({ message }) => {
@@ -2683,18 +2695,17 @@
                     }
                 });
 
-                // Load ffmpeg.wasm binaries from jsDelivr ESM CDN with proper blob URLs to avoid cross-origin Web Worker security restrictions
+                // Load ffmpeg.wasm binaries from jsDelivr with blob URLs
                 const baseURL = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/esm';
-                const workerURL = 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.15/dist/esm/worker.js';
-
                 await ffmpegInst.load({
                     coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
                     wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
-                    workerURL: await toBlobURL(workerURL, 'text/javascript')
+                    workerURL: localWorkerURL
                 });
 
                 ffmpegLoaded = true;
                 appendLog("✓ In-browser FFmpeg.wasm loaded successfully!");
+                return ffmpegInst;
             })();
 
             return ffmpegLoadPromise;
