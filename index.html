@@ -2683,11 +2683,14 @@
                     }
                 });
 
-                // Load ffmpeg.wasm binaries from jsDelivr ESM CDN with proper MIME types
+                // Load ffmpeg.wasm binaries from jsDelivr ESM CDN with proper blob URLs to avoid cross-origin Web Worker security restrictions
                 const baseURL = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/esm';
+                const workerURL = 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.15/dist/esm/worker.js';
+
                 await ffmpegInst.load({
                     coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-                    wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm')
+                    wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+                    workerURL: await toBlobURL(workerURL, 'text/javascript')
                 });
 
                 ffmpegLoaded = true;
