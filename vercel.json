@@ -1,23 +1,27 @@
 {
-  "headers": [
+  "version": 2,
+  "builds": [
     {
-      "source": "/(.*)",
-      "headers": [
-        {
-          "key": "Cross-Origin-Opener-Policy",
-          "value": "same-origin"
-        },
-        {
-          "key": "Cross-Origin-Embedder-Policy",
-          "value": "require-corp"
-        }
-      ]
+      "src": "{index.html,hero-banner.jpg,public/**}",
+      "use": "@vercel/static"
     }
   ],
-  "rewrites": [
+  "routes": [
     {
-      "source": "/ffmpeg/:path*",
-      "destination": "/public/ffmpeg/:path*"
+      "src": "/(.*)",
+      "headers": {
+        "Cross-Origin-Opener-Policy": "same-origin",
+        "Cross-Origin-Embedder-Policy": "require-corp"
+      },
+      "continue": true
+    },
+    {
+      "src": "/ffmpeg/(.*)",
+      "dest": "/public/ffmpeg/$1"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/$1"
     }
   ]
 }
