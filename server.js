@@ -104,8 +104,6 @@ const server = http.createServer((req, res) => {
       const inputPath = fileObj.filepath;
       const originalName = fileObj.originalFilename || 'input.mp4';
       const ext = path.extname(originalName) || '.mp4';
-      const outId = `clean_${Date.now()}${ext}`;
-      const outputPath = path.join(OUTPUT_DIR, outId);
 
       try {
         let targetThreshold = parseFloat(threshold);
@@ -219,8 +217,11 @@ const server = http.createServer((req, res) => {
           keepSegments.push({ start: lastEnd, end: totalDuration });
         }
 
-        // Step C: Check if video stream is present
+        // Determine clean extension for standard browser preview playback
         const isVideo = fullLog.includes('Video:');
+        const finalExt = isVideo ? '.mp4' : (['.wav', '.aac', '.flac', '.ogg'].includes(ext.toLowerCase()) ? ext.toLowerCase() : '.mp3');
+        const outId = `clean_${Date.now()}${finalExt}`;
+        const outputPath = path.join(OUTPUT_DIR, outId);
 
         // Build filter_complex
         let filterComplex = '';
@@ -240,7 +241,7 @@ const server = http.createServer((req, res) => {
 
         filterComplex += `${concatInputs}concat=n=${keepSegments.length}:v=${isVideo ? 1 : 0}:a=1${isVideo ? '[outv][outa]' : '[out]'}`;
 
-        // Write filter complex to temporary script file to bypass Windows command line length limit (8191 chars)
+        // Write filter complex to temporary script file to bypass command line length limits
         const scriptId = `filter_${Date.now()}.txt`;
         const scriptPath = path.join(UPLOAD_DIR, scriptId);
         fs.writeFileSync(scriptPath, filterComplex, 'utf8');
@@ -255,13 +256,17 @@ const server = http.createServer((req, res) => {
           processArgs.push('-map', '[outv]', '-map', '[outa]');
           processArgs.push(
             '-c:v', 'libx264',
+            '-pix_fmt', 'yuv420p',
             '-preset', 'veryfast',
-            '-crf', '23',
+            '-crf', '22',
+            '-c:a', 'aac',
+            '-b:a', '192k',
             '-threads', '0',
             '-movflags', '+faststart'
           );
         } else {
           processArgs.push('-map', '[out]');
+          processArgs.push('-c:a', 'libmp3lame', '-b:a', '192k');
         }
 
         processArgs.push(outputPath);
@@ -302,20 +307,47 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // 2. Serve static outputs
+  // 2. Serve static outputs with HTTP 206 Partial Content (essential for video players & seeking)
   if (req.url.startsWith('/outputs/')) {
     const filename = path.basename(req.url);
     const filePath = path.join(OUTPUT_DIR, filename);
     const ext = path.extname(filePath).toLowerCase();
     const contentType = MIME_TYPES[ext] || 'application/octet-stream';
 
-    fs.readFile(filePath, (err, data) => {
-      if (err) {
+    fs.stat(filePath, (statErr, stats) => {
+      if (statErr || !stats.isFile()) {
         res.writeHead(404);
         return res.end('Output not found');
       }
-      res.writeHead(200, { 'Content-Type': contentType });
-      res.end(data);
+
+      const fileSize = stats.size;
+      const range = req.headers.range;
+
+      if (range) {
+        const parts = range.replace(/bytes=/, "").split("-");
+        const start = parseInt(parts[0], 10);
+        const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+        const chunksize = (end - start) + 1;
+        const file = fs.createReadStream(filePath, { start, end });
+        const head = {
+          'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+          'Accept-Ranges': 'bytes',
+          'Content-Length': chunksize,
+          'Content-Type': contentType,
+          'Access-Control-Allow-Origin': '*'
+        };
+        res.writeHead(206, head);
+        file.pipe(res);
+      } else {
+        const head = {
+          'Content-Length': fileSize,
+          'Content-Type': contentType,
+          'Accept-Ranges': 'bytes',
+          'Access-Control-Allow-Origin': '*'
+        };
+        res.writeHead(200, head);
+        fs.createReadStream(filePath).pipe(res);
+      }
     });
     return;
   }

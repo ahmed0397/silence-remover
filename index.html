@@ -2668,6 +2668,8 @@
             }
         }
 
+        initMiniGame();
+
         // --- CLIENT-SIDE FFMPEG.WASM INITIALIZATION & PROCESSING (100% Free on Vercel) ---
         let ffmpegLoaded = false;
         let ffmpegLoadPromise = null;
@@ -2966,12 +2968,55 @@
 
                     const playerContainer = document.getElementById('playerContainer');
                     playerContainer.innerHTML = '';
-                    const mediaEl = document.createElement(result.isVideo ? 'video' : 'audio');
-                    mediaEl.src = result.downloadUrl;
-                    mediaEl.controls = true;
-                    mediaEl.autoplay = false;
-                    mediaEl.className = 'media-player';
-                    playerContainer.appendChild(mediaEl);
+                    
+                    const previewWrapper = document.createElement('div');
+                    previewWrapper.style.margin = '20px 0 24px';
+                    previewWrapper.style.padding = '16px';
+                    previewWrapper.style.background = '#faf9fa';
+                    previewWrapper.style.border = '1px solid var(--light-border)';
+                    previewWrapper.style.borderRadius = '12px';
+                    previewWrapper.style.textAlign = 'center';
+
+                    const previewHeader = document.createElement('div');
+                    previewHeader.style.display = 'flex';
+                    previewHeader.style.justifyContent = 'space-between';
+                    previewHeader.style.alignItems = 'center';
+                    previewHeader.style.marginBottom = '12px';
+                    previewHeader.innerHTML = `
+                        <span style="font-weight: 700; font-size: 14px; color: var(--primary-text); display: flex; align-items: center; gap: 6px;">
+                            ${result.isVideo ? '🎬 Cleaned Video Preview' : '🎵 Cleaned Audio Preview'}
+                        </span>
+                        <a href="${result.downloadUrl}" target="_blank" style="font-size: 12px; color: var(--primary-action); text-decoration: underline; font-weight: 600;">
+                            Open in New Tab ↗
+                        </a>
+                    `;
+                    previewWrapper.appendChild(previewHeader);
+
+                    if (result.isVideo) {
+                        const videoEl = document.createElement('video');
+                        videoEl.src = result.downloadUrl;
+                        videoEl.controls = true;
+                        videoEl.playsInline = true;
+                        videoEl.preload = 'auto';
+                        videoEl.className = 'media-player';
+                        videoEl.style.width = '100%';
+                        videoEl.style.maxHeight = '420px';
+                        videoEl.style.borderRadius = '8px';
+                        videoEl.style.background = '#000';
+                        videoEl.style.display = 'block';
+                        previewWrapper.appendChild(videoEl);
+                    } else {
+                        const audioEl = document.createElement('audio');
+                        audioEl.src = result.downloadUrl;
+                        audioEl.controls = true;
+                        audioEl.preload = 'auto';
+                        audioEl.className = 'media-player';
+                        audioEl.style.width = '100%';
+                        audioEl.style.margin = '10px 0';
+                        previewWrapper.appendChild(audioEl);
+                    }
+
+                    playerContainer.appendChild(previewWrapper);
 
                     const dlBtn = document.getElementById('downloadBtn');
                     dlBtn.onclick = () => {
