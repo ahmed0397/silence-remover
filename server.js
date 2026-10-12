@@ -5,8 +5,14 @@ const { spawn } = require('child_process');
 const formidable = require('formidable');
 const ffmpeg = require('@ffmpeg-installer/ffmpeg');
 
-const PORT = 8080;
-const FFMPEG_PATH = ffmpeg.path;
+const PORT = process.env.PORT || 8080;
+// Check if system ffmpeg exists in PATH (e.g. Linux Docker on Render/Railway), else fallback to bundle
+let FFMPEG_PATH = 'ffmpeg';
+try {
+  require('child_process').execSync('ffmpeg -version', { stdio: 'ignore' });
+} catch (e) {
+  FFMPEG_PATH = ffmpeg.path;
+}
 
 const UPLOAD_DIR = path.join(__dirname, 'uploads');
 const OUTPUT_DIR = path.join(__dirname, 'outputs');
@@ -57,6 +63,19 @@ function runFFmpeg(args) {
 
 const server = http.createServer((req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204);
+    return res.end();
+  }
+
+  // Health check endpoint for hosting platforms
+  if (req.method === 'GET' && req.url === '/health') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ status: 'ok', engine: 'FFmpeg' }));
+  }
 
   // 1. API: Process Silence Removal (Native Server-Side FFmpeg)
   if (req.method === 'POST' && req.url === '/api/process') {

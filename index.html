@@ -2890,16 +2890,10 @@
             try {
                 let result = null;
 
-                // 1. Try local/backend server if available
-                let useServer = true;
-                try {
-                    const testPing = await fetch('/api/process', { method: 'OPTIONS' }).catch(() => null);
-                    // If running on Vercel static hosting, /api/process returns 404 or fails
-                } catch(e) {
-                    useServer = false;
-                }
+                // Support custom cloud backend URL (e.g., Render/Railway) or relative URL if hosted together
+                const backendBase = window.BACKEND_API_URL || localStorage.getItem('silence_backend_url') || '';
+                const processApiUrl = backendBase ? `${backendBase.replace(/\/$/, '')}/api/process` : '/api/process';
 
-                // If running locally with server.js, use backend
                 let response = null;
                 try {
                     const formData = new FormData();
@@ -2923,7 +2917,7 @@
                         }
                     }, 450);
 
-                    response = await fetch('/api/process', {
+                    response = await fetch(processApiUrl, {
                         method: 'POST',
                         body: formData
                     });
@@ -2934,6 +2928,10 @@
                 if (response && response.ok) {
                     if (progressTimer) clearInterval(progressTimer);
                     result = await response.json();
+                    // If downloadUrl is relative and backendBase is defined, prepend backendBase
+                    if (result.downloadUrl && result.downloadUrl.startsWith('/') && backendBase) {
+                        result.downloadUrl = `${backendBase.replace(/\/$/, '')}${result.downloadUrl}`;
+                    }
                 } else {
                     // Fallback to 100% In-Browser FFmpeg.wasm (Runs directly on Vercel)
                     if (progressTimer) clearInterval(progressTimer);
