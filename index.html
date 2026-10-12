@@ -98,7 +98,7 @@
         :root {
             /* Colors */
             --primary-text: #240029;
-            --primary-action: #df37a7;
+            --primary-action: #b81582;
             --secondary-border: #6d526d;
             --hero-gradient: linear-gradient(145deg, #ffbdd3, #fff1bd 40%, #fff1bd 60%, #ffcb0f);
             --light-border: #d4ccd4;
@@ -903,8 +903,10 @@
             font-weight: 600;
         }
 
+        .reviewer-info h3,
         .reviewer-info h4 {
             font-size: 16px;
+            font-weight: 700;
             margin-bottom: 2px;
         }
 
@@ -1028,11 +1030,23 @@
 
         .footer-bottom {
             margin-top: 24px;
-            color: var(--secondary-border);
+            color: #d4ccd4;
             font-size: 14px;
         }
 
         /* Utility */
+        .visually-hidden {
+            position: absolute !important;
+            width: 1px !important;
+            height: 1px !important;
+            padding: 0 !important;
+            margin: -1px !important;
+            overflow: hidden !important;
+            clip: rect(0, 0, 0, 0) !important;
+            white-space: nowrap !important;
+            border: 0 !important;
+        }
+
         .hidden {
             display: none !important;
         }
@@ -1071,15 +1085,16 @@
         }
 
         .announcement-pill {
-            background: var(--primary-action);
+            background: #9d0f6e;
             color: #ffffff;
             font-family: var(--font-mono);
-            font-size: 10px;
+            font-size: 11px;
             font-weight: 700;
             letter-spacing: 0.1em;
-            padding: 2px 8px;
+            padding: 3px 9px;
             border-radius: 999px;
-            box-shadow: 0 0 10px rgba(223, 55, 167, 0.5);
+            box-shadow: 0 0 10px rgba(184, 21, 130, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.3);
         }
 
         .announcement-text {
@@ -1381,10 +1396,10 @@
     </div>
 
     <!-- Skip to content link for accessibility -->
-    <a href="#tool" class="skip-to-content" style="position:absolute;top:-40px;left:0;background:var(--primary-action);color:#fff;padding:8px 16px;z-index:1000;transition:top 0.2s;" onfocus="this.style.top='0'" onblur="this.style.top='-40px'">Skip to main tool</a>
+    <a href="#main-content" class="skip-to-content" style="position:absolute;top:-40px;left:0;background:var(--primary-action);color:#fff;padding:8px 16px;z-index:1000;transition:top 0.2s;" onfocus="this.style.top='0'" onblur="this.style.top='-40px'">Skip to main content</a>
 
     <!-- 1. Navigation Bar -->
-    <nav>
+    <nav aria-label="Main Navigation">
         <div class="container nav-container">
             <a href="#" class="nav-logo" style="display: flex; align-items: center; gap: 10px;">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -1394,7 +1409,7 @@
                     <rect x="18" y="11" width="3" height="2" rx="1" fill="var(--primary-text)"/>
                 </svg>
                 <span>TrimSilence</span>
-                <span style="font-size: 11px; font-weight: 600; background: rgba(223, 55, 167, 0.1); color: var(--primary-action); padding: 2px 8px; border-radius: 999px;">FREE</span>
+                <span style="font-size: 11px; font-weight: 700; background: rgba(184, 21, 130, 0.1); color: #8a0c5c; padding: 2px 8px; border-radius: 999px; border: 1px solid rgba(184, 21, 130, 0.25);">FREE</span>
             </a>
             <div class="nav-links">
                 <a href="#tool">Tool</a>
@@ -1414,6 +1429,7 @@
         </div>
     </nav>
 
+    <main id="main-content">
     <!-- 2. Hero Section -->
     <section class="hero">
         <div class="ambient-orb orb-1"></div>
@@ -1667,8 +1683,9 @@
                 
                 <!-- Upload Zone -->
                 <div class="upload-zone" id="dropZone">
-                    <input type="file" id="fileInput" accept="audio/*,video/*">
-                    <svg class="upload-icon" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <label for="fileInput" class="visually-hidden">Upload audio or video file to remove silence</label>
+                    <input type="file" id="fileInput" accept="audio/*,video/*" aria-label="Upload audio or video file to remove silence">
+                    <svg class="upload-icon" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                         <polyline points="17 8 12 3 7 8"></polyline>
                         <line x1="12" y1="3" x2="12" y2="15"></line>
@@ -1941,7 +1958,7 @@
                     <div class="testimonial-header">
                         <div class="avatar">S</div>
                         <div class="reviewer-info">
-                            <h4>Sarah Jenkins</h4>
+                            <h3>Sarah Jenkins</h3>
                             <p>Podcast Producer & Host</p>
                         </div>
                     </div>
@@ -1952,7 +1969,7 @@
                     <div class="testimonial-header">
                         <div class="avatar">M</div>
                         <div class="reviewer-info">
-                            <h4>Marcus Vance</h4>
+                            <h3>Marcus Vance</h3>
                             <p>Tech YouTuber (120K Subs)</p>
                         </div>
                     </div>
@@ -1963,7 +1980,7 @@
                     <div class="testimonial-header">
                         <div class="avatar">E</div>
                         <div class="reviewer-info">
-                            <h4>Dr. Elena Rostova</h4>
+                            <h3>Dr. Elena Rostova</h3>
                             <p>Online Course Creator</p>
                         </div>
                     </div>
@@ -2105,6 +2122,7 @@
             <a href="#tool" class="btn btn-primary" style="margin-top: 18px;">Start Trimming Silence Now — It's Free</a>
         </div>
     </section>
+    </main>
 
     <!-- 11. Footer -->
     <footer>
