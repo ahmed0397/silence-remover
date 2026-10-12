@@ -2890,9 +2890,9 @@
             try {
                 let result = null;
 
-                // Support custom cloud backend URL (e.g., Render/Railway) or relative URL if hosted together
-                const backendBase = window.BACKEND_API_URL || localStorage.getItem('silence_backend_url') || '';
-                const processApiUrl = backendBase ? `${backendBase.replace(/\/$/, '')}/api/process` : '/api/process';
+                // Connect directly to live Render cloud backend (FFmpeg engine)
+                const backendBase = window.BACKEND_API_URL || localStorage.getItem('silence_backend_url') || 'https://silence-remover-api.onrender.com';
+                const processApiUrl = `${backendBase.replace(/\/$/, '')}/api/process`;
 
                 let response = null;
                 try {
