@@ -2669,16 +2669,6 @@
                 setStatus("Loading in-browser audio engine (WebAssembly)...", 12);
                 appendLog("Initializing in-browser FFmpeg.wasm engine...");
 
-                // Create worker script via blob URL from same origin so browser never throws cross-origin error
-                const workerScript = `
-                    importScripts('https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.15/dist/umd/ffmpeg.js');
-                `;
-                // Modern @ffmpeg/ffmpeg v0.12 ESM worker URL converted to Blob URL
-                const workerResponse = await fetch('https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.15/dist/esm/worker.js');
-                const workerCode = await workerResponse.text();
-                const workerBlob = new Blob([workerCode], { type: 'text/javascript' });
-                const localWorkerURL = URL.createObjectURL(workerBlob);
-
                 ffmpegInst = new FFmpeg();
 
                 // Subscribe to internal FFmpeg log stream
@@ -2695,12 +2685,12 @@
                     }
                 });
 
-                // Load ffmpeg.wasm binaries from jsDelivr with blob URLs
+                // Load ffmpeg.wasm using same-origin worker to avoid cross-origin Worker security restrictions
                 const baseURL = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/esm';
                 await ffmpegInst.load({
+                    classWorkerURL: '/ffmpeg-core/worker.js',
                     coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-                    wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
-                    workerURL: localWorkerURL
+                    wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm')
                 });
 
                 ffmpegLoaded = true;
