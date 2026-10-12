@@ -223,58 +223,55 @@ const server = http.createServer((req, res) => {
         const outId = `clean_${Date.now()}${finalExt}`;
         const outputPath = path.join(OUTPUT_DIR, outId);
 
-        // Build filter_complex
-        let filterComplex = '';
-        let concatInputs = '';
+        // Build streaming select filter (Single-pass, constant low-memory < 60MB RAM)
+        const intervals = keepSegments.map(s => `between(t,${s.start.toFixed(3)},${s.end.toFixed(3)})`).join('+');
+        const aFilter = `aselect='${intervals}',asetpts=N/SR/TB`;
+        const aScriptPath = path.join(UPLOAD_DIR, `af_${Date.now()}.txt`);
+        fs.writeFileSync(aScriptPath, aFilter, 'utf8');
 
-        for (let i = 0; i < keepSegments.length; i++) {
-          const s = keepSegments[i];
-          if (isVideo) {
-            filterComplex += `[0:v]trim=start=${s.start.toFixed(3)}:end=${s.end.toFixed(3)},setpts=PTS-STARTPTS[v${i}];`;
-            filterComplex += `[0:a]atrim=start=${s.start.toFixed(3)}:end=${s.end.toFixed(3)},asetpts=PTS-STARTPTS[a${i}];`;
-            concatInputs += `[v${i}][a${i}]`;
-          } else {
-            filterComplex += `[0:a]atrim=start=${s.start.toFixed(3)}:end=${s.end.toFixed(3)},asetpts=PTS-STARTPTS[a${i}];`;
-            concatInputs += `[a${i}]`;
-          }
-        }
-
-        filterComplex += `${concatInputs}concat=n=${keepSegments.length}:v=${isVideo ? 1 : 0}:a=1${isVideo ? '[outv][outa]' : '[out]'}`;
-
-        // Write filter complex to temporary script file to bypass command line length limits
-        const scriptId = `filter_${Date.now()}.txt`;
-        const scriptPath = path.join(UPLOAD_DIR, scriptId);
-        fs.writeFileSync(scriptPath, filterComplex, 'utf8');
-
+        let vScriptPath = null;
         const processArgs = [
           '-y',
-          '-i', inputPath,
-          '-filter_complex_script', scriptPath
+          '-i', inputPath
         ];
 
         if (isVideo) {
-          processArgs.push('-map', '[outv]', '-map', '[outa]');
+          // Scale max width 1920 to prevent 4K memory explosion on 512MB RAM tier
+          const vFilter = `select='${intervals}',scale='min(1920,iw)':-2,setpts=N/FRAME_RATE/TB`;
+          vScriptPath = path.join(UPLOAD_DIR, `vf_${Date.now()}.txt`);
+          fs.writeFileSync(vScriptPath, vFilter, 'utf8');
+
           processArgs.push(
+            '-filter_script:v', vScriptPath,
+            '-filter_script:a', aScriptPath,
             '-c:v', 'libx264',
             '-pix_fmt', 'yuv420p',
-            '-preset', 'veryfast',
-            '-crf', '22',
+            '-preset', 'ultrafast',
+            '-crf', '23',
             '-c:a', 'aac',
             '-b:a', '192k',
-            '-threads', '0',
+            '-threads', '2',
             '-movflags', '+faststart'
           );
         } else {
-          processArgs.push('-map', '[out]');
-          processArgs.push('-c:a', 'libmp3lame', '-b:a', '192k');
+          processArgs.push(
+            '-filter_script:a', aScriptPath,
+            '-c:a', 'libmp3lame',
+            '-b:a', '192k',
+            '-threads', '2'
+          );
         }
 
         processArgs.push(outputPath);
 
         const cutRes = await runFFmpeg(processArgs);
 
-        // Clean up filter script file
-        try { fs.unlinkSync(scriptPath); } catch (e) {}
+        // Immediately clean up temporary script files and uploaded file to free memory and disk
+        try { fs.unlinkSync(aScriptPath); } catch (e) {}
+        if (vScriptPath) {
+          try { fs.unlinkSync(vScriptPath); } catch (e) {}
+        }
+        try { fs.unlinkSync(inputPath); } catch (e) {}
 
         if (cutRes.code !== 0) {
           throw new Error(`FFmpeg failed with code ${cutRes.code}: ${cutRes.stderr.slice(-400)}`);
@@ -368,9 +365,27 @@ const server = http.createServer((req, res) => {
   });
 });
 
-server.timeout = 600000; // 10 minutes
-server.keepAliveTimeout = 600000;
-server.headersTimeout = 605000;
+// Periodic cleanup: delete upload & output files older than 15 minutes to preserve Render disk & RAM
+function cleanupOldFiles() {
+  const maxAge = 15 * 60 * 1000;
+  const now = Date.now();
+  [UPLOAD_DIR, OUTPUT_DIR].forEach((dir) => {
+    fs.readdir(dir, (err, files) => {
+      if (err) return;
+      for (const f of files) {
+        if (f.startsWith('.')) continue;
+        const fp = path.join(dir, f);
+        fs.stat(fp, (err, stats) => {
+          if (!err && now - stats.mtimeMs > maxAge) {
+            fs.unlink(fp, () => {});
+          }
+        });
+      }
+    });
+  });
+}
+setInterval(cleanupOldFiles, 5 * 60 * 1000);
+cleanupOldFiles();
 
 server.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);

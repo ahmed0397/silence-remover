@@ -3043,10 +3043,14 @@
                     }
                 });
 
-                // Load ffmpeg.wasm using same-origin worker to avoid cross-origin Worker security restrictions
+                // Load ffmpeg.wasm using same-origin worker blob to avoid cross-origin Worker security restrictions
+                const workerScript = 'import "https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.15/dist/esm/worker.js";';
+                const workerBlob = new Blob([workerScript], { type: 'text/javascript' });
+                const classWorkerURL = URL.createObjectURL(workerBlob);
+
                 const baseURL = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/esm';
                 await ffmpegInst.load({
-                    classWorkerURL: '/ffmpeg-core/worker.js',
+                    classWorkerURL: classWorkerURL,
                     coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
                     wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm')
                 });
@@ -3158,31 +3162,32 @@
             setStatus(`Cutting ${keepSegments.length} speech clips & stitching...`, 55);
             appendLog(`Building filter pipeline with ${keepSegments.length} jump cuts...`);
 
-            // Build filter complex
-            let filterComplex = '';
-            let concatInputs = '';
+            // Build streaming select filters (Single-pass, constant low-memory)
+            const intervals = keepSegments.map(s => `between(t,${s.start.toFixed(3)},${s.end.toFixed(3)})`).join('+');
+            const execArgs = ['-y', '-i', inputName];
 
-            for (let i = 0; i < keepSegments.length; i++) {
-                const s = keepSegments[i];
-                if (isVideo) {
-                    filterComplex += `[0:v]trim=start=${s.start.toFixed(3)}:end=${s.end.toFixed(3)},setpts=PTS-STARTPTS[v${i}];`;
-                    filterComplex += `[0:a]atrim=start=${s.start.toFixed(3)}:end=${s.end.toFixed(3)},asetpts=PTS-STARTPTS[a${i}];`;
-                    concatInputs += `[v${i}][a${i}]`;
-                } else {
-                    filterComplex += `[0:a]atrim=start=${s.start.toFixed(3)}:end=${s.end.toFixed(3)},asetpts=PTS-STARTPTS[a${i}];`;
-                    concatInputs += `[a${i}]`;
-                }
-            }
-
-            filterComplex += `${concatInputs}concat=n=${keepSegments.length}:v=${isVideo ? 1 : 0}:a=1${isVideo ? '[outv][outa]' : '[out]'}`;
-
-            const execArgs = ['-y', '-i', inputName, '-filter_complex', filterComplex];
             if (isVideo) {
-                execArgs.push('-map', '[outv]', '-map', '[outa]');
-                execArgs.push('-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '26', '-movflags', '+faststart');
+                const vFilter = `select='${intervals}',scale='min(1920,iw)':-2,setpts=N/FRAME_RATE/TB`;
+                const aFilter = `aselect='${intervals}',asetpts=N/SR/TB`;
+                execArgs.push(
+                    '-vf', vFilter,
+                    '-af', aFilter,
+                    '-c:v', 'libx264',
+                    '-preset', 'ultrafast',
+                    '-crf', '26',
+                    '-c:a', 'aac',
+                    '-b:a', '192k',
+                    '-movflags', '+faststart'
+                );
             } else {
-                execArgs.push('-map', '[out]');
+                const aFilter = `aselect='${intervals}',asetpts=N/SR/TB`;
+                execArgs.push(
+                    '-af', aFilter,
+                    '-c:a', 'libmp3lame',
+                    '-b:a', '192k'
+                );
             }
+
             execArgs.push(outputName);
 
             setStatus("Rendering jump-cut file in browser...", 75);
