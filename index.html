@@ -601,10 +601,54 @@
             height: 100%;
         }
 
-        .processing-status {
+        .processing-modal-overlay {
             display: none;
-            margin: 24px 0;
-            text-align: left;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(36, 0, 41, 0.78);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            z-index: 99999;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .processing-modal-card {
+            background: #ffffff;
+            border: 1px solid var(--light-border);
+            border-radius: 20px;
+            max-width: 620px;
+            width: 100%;
+            padding: 28px 24px;
+            box-shadow: 0 24px 60px rgba(36, 0, 41, 0.4);
+            text-align: center;
+            position: relative;
+            animation: modalPopIn 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        @keyframes modalPopIn {
+            from {
+                opacity: 0;
+                transform: scale(0.93) translateY(14px);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+            }
+        }
+
+        .preview-comparison-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 20px;
+            margin: 20px 0 24px;
         }
 
         .progress-bar-bg {
@@ -1682,42 +1726,37 @@
 
                 </div>
 
-                <!-- Beautiful Waiting Experience & Mini-Game -->
-                <div class="processing-status" id="processingStatus" style="background: rgba(255,255,255,0.95); backdrop-filter: blur(12px); border: 1px solid var(--light-border); border-radius: 16px; padding: 28px; box-shadow: 0 16px 40px rgba(41,0,41,0.08); text-align: center;">
-                    
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <span class="processing-dot" style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--primary-action); animation: pulseDot 1.4s infinite ease-in-out;"></span>
-                            <span style="font-weight: 700; font-size: 15px; color: var(--primary-text);">Optimizing Your Content</span>
+                <!-- Pop-Up Waiting Experience & Mini-Game Modal -->
+                <div class="processing-modal-overlay" id="processingStatus">
+                    <div class="processing-modal-card">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <span class="processing-dot" style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--primary-action); animation: pulseDot 1.4s infinite ease-in-out;"></span>
+                                <span style="font-weight: 700; font-size: 16px; color: var(--primary-text);">Removing Silence...</span>
+                            </div>
+                            <span id="progressPercent" style="font-family: var(--font-mono); font-weight: 700; font-size: 16px; color: var(--primary-action);">0%</span>
                         </div>
-                        <span id="progressPercent" style="font-family: var(--font-mono); font-weight: 700; font-size: 15px; color: var(--primary-action);">0%</span>
-                    </div>
 
-                    <div class="progress-bar-bg" style="height: 10px; background: #f0ebf0; border-radius: 999px; overflow: hidden; margin-bottom: 14px;">
-                        <div class="progress-bar-fill" id="progressBar" style="height: 100%; width: 0%; background: linear-gradient(90deg, #df37a7, #ff65cd); border-radius: 999px; transition: width 0.3s ease;"></div>
-                    </div>
-
-                    <div class="status-text" id="statusText" style="font-size: 14px; font-weight: 500; color: var(--secondary-border); margin-bottom: 10px;">Scanning audio track & speech levels...</div>
-                    <div style="font-size: 12px; color: #886588; margin-bottom: 20px; display: inline-flex; align-items: center; gap: 6px; background: rgba(223, 55, 167, 0.08); padding: 4px 12px; border-radius: 999px;">
-                        <span>🎬 High-definition video re-encoding in progress (~1-2 min for 2 min video) — play below while waiting!</span>
-                    </div>
-
-                    <!-- Mini-Game: Soundwave Jump (To keep user entertained while processing) -->
-                    <div id="miniGameContainer" style="background: #1d0022; border-radius: 14px; padding: 16px; color: #fff; margin-top: 10px; box-shadow: inset 0 2px 8px rgba(0,0,0,0.4); text-align: center;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 12px;">
-                            <span style="font-weight: 600; color: #ffbdd3; text-transform: uppercase; letter-spacing: 0.08em;">🎮 Mini-Game: Spacebar or Tap to Jump Pauses!</span>
-                            <span style="font-family: var(--font-mono); color: #fff;">Score: <strong id="gameScore" style="color: var(--primary-action);">0</strong></span>
+                        <div class="progress-bar-bg" style="height: 10px; background: #f0ebf0; border-radius: 999px; overflow: hidden; margin-bottom: 14px;">
+                            <div class="progress-bar-fill" id="progressBar" style="height: 100%; width: 0%; background: linear-gradient(90deg, #df37a7, #ff65cd); border-radius: 999px; transition: width 0.3s ease;"></div>
                         </div>
-                        <canvas id="gameCanvas" width="560" height="110" style="width: 100%; max-width: 560px; height: 110px; background: #130017; border-radius: 8px; display: block; margin: 0 auto; cursor: pointer;"></canvas>
-                        <div style="font-size: 11px; color: #d4ccd4; margin-top: 8px;">Tap the screen or press <kbd style="background: rgba(255,255,255,0.15); padding: 2px 6px; border-radius: 4px;">Space</kbd> to jump over silence barriers</div>
-                    </div>
 
-                    <!-- Technical feed hidden from public view -->
-                    <div style="display: none;">
-                        <details id="logDetails">
-                            <summary>Diagnostics & Technical Feed</summary>
-                            <pre id="logConsole"></pre>
-                        </details>
+                        <div class="status-text" id="statusText" style="font-size: 14px; font-weight: 500; color: var(--secondary-border); margin-bottom: 14px;">Scanning audio track & speech levels...</div>
+
+                        <!-- Mini-Game: Soundwave Jump (Pop-Up) -->
+                        <div id="miniGameContainer" style="background: #1d0022; border-radius: 14px; padding: 18px 16px; color: #fff; margin-top: 10px; box-shadow: inset 0 2px 8px rgba(0,0,0,0.4); text-align: center;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; font-size: 12px;">
+                                <span style="font-weight: 700; color: #ffbdd3; text-transform: uppercase; letter-spacing: 0.08em; display: flex; align-items: center; gap: 6px;">
+                                    🎮 Pop-Up Game: Soundwave Jump
+                                </span>
+                                <span style="font-family: var(--font-mono); color: #fff;">Score: <strong id="gameScore" style="color: var(--primary-action); font-size: 14px;">0</strong></span>
+                            </div>
+                            <canvas id="gameCanvas" width="560" height="110" style="width: 100%; max-width: 560px; height: 110px; background: #130017; border-radius: 8px; display: block; margin: 0 auto; cursor: pointer;"></canvas>
+                            <div style="font-size: 11px; color: #d4ccd4; margin-top: 10px;">Tap anywhere or press <kbd style="background: rgba(255,255,255,0.2); padding: 2px 6px; border-radius: 4px; color: #fff; font-weight: 600;">Space</kbd> to jump over silence barriers while your file is processing</div>
+                        </div>
+
+                        <!-- Hidden debug container -->
+                        <div id="logConsole" style="display: none;"></div>
                     </div>
                 </div>
 
@@ -2874,9 +2913,9 @@
             if(!currentFile) return;
             
             controlsPanel.style.display = 'none';
-            processingStatus.style.display = 'block';
+            document.getElementById('sourcePreviewContainer').style.display = 'none';
+            processingStatus.style.display = 'flex';
             if (logConsole) logConsole.textContent = '';
-            if (logDetails) logDetails.open = false; // Keep diagnostics collapsed by default
             
             startSoundwaveGame();
 
@@ -2952,6 +2991,7 @@
                     alert("No silence detected in this file with current settings. Try lowering the threshold.");
                     processingStatus.style.display = 'none';
                     controlsPanel.style.display = 'block';
+                    document.getElementById('sourcePreviewContainer').style.display = 'block';
                     return;
                 }
 
@@ -2969,58 +3009,131 @@
                     const playerContainer = document.getElementById('playerContainer');
                     playerContainer.innerHTML = '';
                     
-                    const previewWrapper = document.createElement('div');
-                    previewWrapper.style.margin = '20px 0 24px';
-                    previewWrapper.style.padding = '18px';
-                    previewWrapper.style.background = '#faf9fa';
-                    previewWrapper.style.border = '1px solid var(--light-border)';
-                    previewWrapper.style.borderRadius = '12px';
-                    previewWrapper.style.textAlign = 'left';
+                    const comparisonWrapper = document.createElement('div');
+                    comparisonWrapper.style.margin = '20px 0 28px';
 
-                    const previewHeader = document.createElement('div');
-                    previewHeader.style.display = 'flex';
-                    previewHeader.style.justifyContent = 'space-between';
-                    previewHeader.style.alignItems = 'center';
-                    previewHeader.style.marginBottom = '14px';
-                    previewHeader.innerHTML = `
+                    const comparisonHeader = document.createElement('div');
+                    comparisonHeader.style.display = 'flex';
+                    comparisonHeader.style.justifyContent = 'space-between';
+                    comparisonHeader.style.alignItems = 'center';
+                    comparisonHeader.style.marginBottom = '14px';
+                    comparisonHeader.innerHTML = `
                         <div style="font-weight: 700; font-size: 15px; color: var(--primary-text); display: flex; align-items: center; gap: 8px;">
-                            <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #15803d;"></span>
-                            ${result.isVideo ? '🎬 Cleaned Video Preview' : '🎵 Cleaned Audio Preview'}
+                            <span>⚖️</span> Side-by-Side Preview Comparison
                         </div>
                         <span style="font-size: 12px; font-weight: 600; color: #15803d; background: #dcfce7; border: 1px solid #bbf7d0; padding: 3px 10px; border-radius: 999px;">
-                            Ready to Play
+                            ${formatTime(result.savedDuration)} Saved
                         </span>
                     `;
-                    previewWrapper.appendChild(previewHeader);
+                    comparisonWrapper.appendChild(comparisonHeader);
+
+                    const comparisonGrid = document.createElement('div');
+                    comparisonGrid.className = 'preview-comparison-grid';
+
+                    // 1. ORIGINAL PREVIEW (Left Card)
+                    const origCard = document.createElement('div');
+                    origCard.style.background = '#faf9fa';
+                    origCard.style.border = '1px solid var(--light-border)';
+                    origCard.style.borderRadius = '12px';
+                    origCard.style.padding = '16px';
+                    origCard.style.textAlign = 'left';
+
+                    const origHeader = document.createElement('div');
+                    origHeader.style.display = 'flex';
+                    origHeader.style.justifyContent = 'space-between';
+                    origHeader.style.alignItems = 'center';
+                    origHeader.style.marginBottom = '12px';
+                    origHeader.innerHTML = `
+                        <div style="font-weight: 700; font-size: 14px; color: var(--primary-text); display: flex; align-items: center; gap: 8px;">
+                            <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #6d526d;"></span>
+                            ${result.isVideo ? 'Original Video' : 'Original Audio'}
+                        </div>
+                        <span style="font-size: 12px; font-weight: 600; color: #6d526d; background: #eedfee; padding: 2px 10px; border-radius: 999px;">
+                            ${formatTime(result.originalDuration)} (With Silence)
+                        </span>
+                    `;
+                    origCard.appendChild(origHeader);
 
                     if (result.isVideo) {
-                        const videoEl = document.createElement('video');
-                        videoEl.src = result.downloadUrl;
-                        videoEl.controls = true;
-                        videoEl.playsInline = true;
-                        videoEl.crossOrigin = 'anonymous';
-                        videoEl.preload = 'auto';
-                        videoEl.className = 'media-player';
-                        videoEl.style.width = '100%';
-                        videoEl.style.maxHeight = '460px';
-                        videoEl.style.borderRadius = '8px';
-                        videoEl.style.background = '#000';
-                        videoEl.style.display = 'block';
-                        videoEl.style.boxShadow = '0 6px 20px rgba(41, 0, 41, 0.15)';
-                        previewWrapper.appendChild(videoEl);
+                        const origVideo = document.createElement('video');
+                        origVideo.src = sourceObjectUrl;
+                        origVideo.controls = true;
+                        origVideo.playsInline = true;
+                        origVideo.preload = 'metadata';
+                        origVideo.className = 'media-player';
+                        origVideo.style.width = '100%';
+                        origVideo.style.maxHeight = '380px';
+                        origVideo.style.borderRadius = '8px';
+                        origVideo.style.background = '#000';
+                        origVideo.style.display = 'block';
+                        origCard.appendChild(origVideo);
                     } else {
-                        const audioEl = document.createElement('audio');
-                        audioEl.src = result.downloadUrl;
-                        audioEl.controls = true;
-                        audioEl.crossOrigin = 'anonymous';
-                        audioEl.preload = 'auto';
-                        audioEl.className = 'media-player';
-                        audioEl.style.width = '100%';
-                        audioEl.style.margin = '10px 0';
-                        previewWrapper.appendChild(audioEl);
+                        const origAudio = document.createElement('audio');
+                        origAudio.src = sourceObjectUrl;
+                        origAudio.controls = true;
+                        origAudio.preload = 'metadata';
+                        origAudio.className = 'media-player';
+                        origAudio.style.width = '100%';
+                        origAudio.style.margin = '10px 0';
+                        origCard.appendChild(origAudio);
                     }
 
-                    playerContainer.appendChild(previewWrapper);
+                    // 2. CLEAN PREVIEW (Right Card)
+                    const cleanCard = document.createElement('div');
+                    cleanCard.style.background = '#ffffff';
+                    cleanCard.style.border = '2px solid var(--primary-action)';
+                    cleanCard.style.borderRadius = '12px';
+                    cleanCard.style.padding = '16px';
+                    cleanCard.style.textAlign = 'left';
+                    cleanCard.style.boxShadow = '0 8px 24px rgba(223, 55, 167, 0.12)';
+
+                    const cleanHeader = document.createElement('div');
+                    cleanHeader.style.display = 'flex';
+                    cleanHeader.style.justifyContent = 'space-between';
+                    cleanHeader.style.alignItems = 'center';
+                    cleanHeader.style.marginBottom = '12px';
+                    cleanHeader.innerHTML = `
+                        <div style="font-weight: 700; font-size: 14px; color: var(--primary-text); display: flex; align-items: center; gap: 8px;">
+                            <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #15803d;"></span>
+                            ${result.isVideo ? 'Cleaned Video' : 'Cleaned Audio'}
+                        </div>
+                        <span style="font-size: 12px; font-weight: 600; color: #15803d; background: #dcfce7; border: 1px solid #bbf7d0; padding: 2px 10px; border-radius: 999px;">
+                            ${formatTime(result.newDuration)} • Jump Cut
+                        </span>
+                    `;
+                    cleanCard.appendChild(cleanHeader);
+
+                    if (result.isVideo) {
+                        const cleanVideo = document.createElement('video');
+                        cleanVideo.src = result.downloadUrl;
+                        cleanVideo.controls = true;
+                        cleanVideo.playsInline = true;
+                        cleanVideo.crossOrigin = 'anonymous';
+                        cleanVideo.preload = 'auto';
+                        cleanVideo.className = 'media-player';
+                        cleanVideo.style.width = '100%';
+                        cleanVideo.style.maxHeight = '380px';
+                        cleanVideo.style.borderRadius = '8px';
+                        cleanVideo.style.background = '#000';
+                        cleanVideo.style.display = 'block';
+                        cleanVideo.style.boxShadow = '0 4px 16px rgba(41, 0, 41, 0.15)';
+                        cleanCard.appendChild(cleanVideo);
+                    } else {
+                        const cleanAudio = document.createElement('audio');
+                        cleanAudio.src = result.downloadUrl;
+                        cleanAudio.controls = true;
+                        cleanAudio.crossOrigin = 'anonymous';
+                        cleanAudio.preload = 'auto';
+                        cleanAudio.className = 'media-player';
+                        cleanAudio.style.width = '100%';
+                        cleanAudio.style.margin = '10px 0';
+                        cleanCard.appendChild(cleanAudio);
+                    }
+
+                    comparisonGrid.appendChild(origCard);
+                    comparisonGrid.appendChild(cleanCard);
+                    comparisonWrapper.appendChild(comparisonGrid);
+                    playerContainer.appendChild(comparisonWrapper);
 
                     const dlBtn = document.getElementById('downloadBtn');
                     dlBtn.onclick = () => {
