@@ -2590,7 +2590,11 @@
                 gameCtx.shadowColor = '#ef4444';
                 gameCtx.shadowBlur = 8;
                 gameCtx.beginPath();
-                gameCtx.roundRect(ob.x, ob.y, ob.w, ob.h, 3);
+                if (typeof gameCtx.roundRect === 'function') {
+                    gameCtx.roundRect(ob.x, ob.y, ob.w, ob.h, 3);
+                } else {
+                    gameCtx.rect(ob.x, ob.y, ob.w, ob.h);
+                }
                 gameCtx.fill();
                 gameCtx.shadowBlur = 0;
 
@@ -2622,7 +2626,11 @@
                 gameCtx.shadowBlur = 10;
                 gameCtx.fillStyle = player.color;
                 gameCtx.beginPath();
-                gameCtx.roundRect(player.x, player.y, player.w, player.h, 6);
+                if (typeof gameCtx.roundRect === 'function') {
+                    gameCtx.roundRect(player.x, player.y, player.w, player.h, 6);
+                } else {
+                    gameCtx.rect(player.x, player.y, player.w, player.h);
+                }
                 gameCtx.fill();
                 gameCtx.shadowBlur = 0;
 
@@ -2642,6 +2650,9 @@
         }
 
         function startSoundwaveGame() {
+            if (!gameCtx && gameCanvas) {
+                gameCtx = gameCanvas.getContext('2d');
+            }
             gameActive = true;
             resetGame();
             if (!gameLoopId) {
