@@ -1712,11 +1712,11 @@
                         <div style="font-size: 11px; color: #d4ccd4; margin-top: 8px;">Tap the screen or press <kbd style="background: rgba(255,255,255,0.15); padding: 2px 6px; border-radius: 4px;">Space</kbd> to jump over silence barriers</div>
                     </div>
 
-                    <!-- Hidden technical log drawer for developers only -->
-                    <div style="margin-top: 16px; text-align: left; opacity: 0.6;">
-                        <details id="logDetails" style="font-size: 11px;">
-                            <summary style="cursor: pointer; color: var(--secondary-border); font-weight: 500;">Diagnostics & Technical Feed</summary>
-                            <pre id="logConsole" style="background: #18001c; color: #a5f3fc; padding: 8px; border-radius: 6px; margin-top: 6px; height: 90px; overflow-y: auto; font-family: var(--font-mono); font-size: 10px; white-space: pre-wrap; word-break: break-all;"></pre>
+                    <!-- Technical feed hidden from public view -->
+                    <div style="display: none;">
+                        <details id="logDetails">
+                            <summary>Diagnostics & Technical Feed</summary>
+                            <pre id="logConsole"></pre>
                         </details>
                     </div>
                 </div>
