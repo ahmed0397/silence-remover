@@ -2,7 +2,7 @@
   "version": 2,
   "builds": [
     {
-      "src": "{index.html,hero-banner.jpg,public/**}",
+      "src": "{index.html,hero-banner.jpg,robots.txt,sitemap.xml,favicon.svg,favicon.png,public/**}",
       "use": "@vercel/static"
     }
   ],
