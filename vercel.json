@@ -2,7 +2,7 @@
   "version": 2,
   "builds": [
     {
-      "src": "{index.html,hero-banner.jpg,robots.txt,sitemap.xml,favicon.svg,favicon.png,public/**}",
+      "src": "{index.html,hero-banner.jpg,robots.txt,sitemap.xml,favicon.ico,favicon.png,favicon.svg,favicon-*.png,apple-touch-icon.png,public/**}",
       "use": "@vercel/static"
     }
   ],
@@ -11,7 +11,7 @@
       "src": "/(.*)",
       "headers": {
         "Cross-Origin-Opener-Policy": "same-origin",
-        "Cross-Origin-Embedder-Policy": "require-corp"
+        "Cross-Origin-Embedder-Policy": "credentialless"
       },
       "continue": true
     },
