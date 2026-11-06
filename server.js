@@ -249,9 +249,10 @@ const server = http.createServer((req, res) => {
             '-c:v', 'libx264',
             '-pix_fmt', 'yuv420p',
             '-preset', 'ultrafast',
-            '-crf', '23',
+            '-tune', 'zerolatency',
+            '-crf', '26',
             '-c:a', 'aac',
-            '-b:a', '192k',
+            '-b:a', '160k',
             '-threads', '2',
             '-movflags', '+faststart'
           );

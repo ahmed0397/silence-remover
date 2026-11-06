@@ -1778,7 +1778,15 @@
 
                 <!-- Original File Preview Player -->
                 <div id="sourcePreviewContainer" style="display:none; margin-bottom: 20px; text-align: left;">
-                    <div style="font-size: 13px; font-weight: 600; color: var(--secondary-border); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em;">Original Preview:</div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 8px;">
+                        <div style="font-size: 13px; font-weight: 700; color: var(--primary-text); text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; gap: 6px;">
+                            <span>Media Preview</span>
+                            <span id="detectedSilencePill" style="display: none; background: #fdf2f8; color: var(--primary-action); border: 1px solid rgba(184, 21, 130, 0.25); padding: 2px 8px; border-radius: 999px; font-size: 11px; text-transform: none; font-weight: 600;">Scanning silence...</span>
+                        </div>
+                        <button type="button" id="toggleSkipSilenceBtn" style="display: none; background: #f3e8f3; border: 1px solid rgba(184, 21, 130, 0.3); color: var(--primary-action); padding: 4px 12px; border-radius: 999px; font-size: 12px; font-weight: 700; cursor: pointer; transition: all 0.2s;">
+                            ⚡ Skip Silence in Preview: ON
+                        </button>
+                    </div>
                     <div id="sourcePlayerWrapper"></div>
                 </div>
 
@@ -2625,6 +2633,7 @@
                 }
 
                 drawInitialWaveform(file);
+                detectSilenceFromAudioBuffer(file);
             }
         }
 
@@ -2649,9 +2658,11 @@
             window.scrollTo(0, document.getElementById('tool').offsetTop);
         });
 
-        // --- WAVEFORM DRAWING (Web Audio API) ---
+        // --- WAVEFORM & INSTANT SILENCE DETECTION (Web Audio API) ---
         let audioContext;
         let audioBufferCache;
+        let localDetectedSilence = [];
+        let virtualPlaybackSkipEnabled = true;
 
         async function drawInitialWaveform(file) {
             try {
@@ -2666,10 +2677,128 @@
                 audioBufferCache = audioBuffer;
                 fileDuration = audioBuffer.duration;
                 
-                renderWaveformCanvas(sourceWaveform, audioBuffer, []);
+                renderWaveformCanvas(sourceWaveform, audioBuffer, localDetectedSilence);
             } catch (err) {
                 console.error("Error drawing waveform", err);
             }
+        }
+
+        async function detectSilenceFromAudioBuffer(file) {
+            try {
+                const pill = document.getElementById('detectedSilencePill');
+                const toggleBtn = document.getElementById('toggleSkipSilenceBtn');
+                if (pill) {
+                    pill.style.display = 'inline-block';
+                    pill.textContent = 'Analyzing audio waveform...';
+                }
+
+                if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                if (!audioBufferCache) {
+                    const arrayBuffer = await file.arrayBuffer();
+                    audioBufferCache = await audioContext.decodeAudioData(arrayBuffer);
+                }
+
+                const buffer = audioBufferCache;
+                const sampleRate = buffer.sampleRate;
+                const channelData = buffer.getChannelData(0);
+                const totalDuration = buffer.duration;
+
+                // Threshold: -32dB (amplitude ~ 0.025)
+                const thresholdAmplitude = Math.pow(10, -32 / 20);
+                const windowSize = Math.floor(sampleRate * 0.05); // 50ms chunks
+                const minSilenceDuration = 0.15; // 150ms minimum pause
+
+                let silentRanges = [];
+                let inSilence = false;
+                let silenceStart = 0;
+
+                for (let i = 0; i < channelData.length; i += windowSize) {
+                    let sumSquares = 0;
+                    const end = Math.min(i + windowSize, channelData.length);
+                    for (let j = i; j < end; j++) {
+                        sumSquares += channelData[j] * channelData[j];
+                    }
+                    const rms = Math.sqrt(sumSquares / (end - i));
+                    const currentTime = i / sampleRate;
+
+                    if (rms < thresholdAmplitude) {
+                        if (!inSilence) {
+                            inSilence = true;
+                            silenceStart = currentTime;
+                        }
+                    } else {
+                        if (inSilence) {
+                            inSilence = false;
+                            const silenceDuration = currentTime - silenceStart;
+                            if (silenceDuration >= minSilenceDuration) {
+                                silentRanges.push({ start: silenceStart, end: currentTime });
+                            }
+                        }
+                    }
+                }
+
+                if (inSilence) {
+                    const silenceDuration = totalDuration - silenceStart;
+                    if (silenceDuration >= minSilenceDuration) {
+                        silentRanges.push({ start: silenceStart, end: totalDuration });
+                    }
+                }
+
+                localDetectedSilence = silentRanges;
+
+                // Redraw source waveform with highlight overlays
+                if (sourceWaveform && audioBufferCache) {
+                    renderWaveformCanvas(sourceWaveform, audioBufferCache, localDetectedSilence);
+                }
+
+                const totalSilenceSec = silentRanges.reduce((acc, s) => acc + (s.end - s.start), 0);
+
+                if (pill) {
+                    pill.style.display = 'inline-block';
+                    if (silentRanges.length > 0) {
+                        pill.textContent = `⚡ ${silentRanges.length} silent gaps detected (~${totalSilenceSec.toFixed(1)}s dead air)`;
+                        pill.style.background = '#fdf2f8';
+                        pill.style.color = 'var(--primary-action)';
+                    } else {
+                        pill.textContent = '✓ No dead air detected';
+                    }
+                }
+
+                if (toggleBtn && silentRanges.length > 0) {
+                    toggleBtn.style.display = 'inline-block';
+                    toggleBtn.onclick = () => {
+                        virtualPlaybackSkipEnabled = !virtualPlaybackSkipEnabled;
+                        toggleBtn.textContent = virtualPlaybackSkipEnabled ? '⚡ Skip Silence in Preview: ON' : '⏸️ Skip Silence in Preview: OFF';
+                        toggleBtn.style.background = virtualPlaybackSkipEnabled ? '#f3e8f3' : '#f4f4f5';
+                        toggleBtn.style.color = virtualPlaybackSkipEnabled ? 'var(--primary-action)' : 'var(--secondary-border)';
+                    };
+                }
+
+                // Attach real-time skip listener to the preview player
+                attachVirtualSkipCutListener();
+
+            } catch (err) {
+                console.warn("Fast silence scan bypassed:", err);
+            }
+        }
+
+        function attachVirtualSkipCutListener() {
+            const sourceWrapper = document.getElementById('sourcePlayerWrapper');
+            const mediaEl = sourceWrapper ? sourceWrapper.querySelector('video, audio') : null;
+            if (!mediaEl) return;
+
+            mediaEl.ontimeupdate = () => {
+                if (!virtualPlaybackSkipEnabled || !localDetectedSilence || localDetectedSilence.length === 0) return;
+                const ct = mediaEl.currentTime;
+                for (let i = 0; i < localDetectedSilence.length; i++) {
+                    const seg = localDetectedSilence[i];
+                    // If playhead enters a silent gap, skip immediately to the end of silence
+                    if (ct >= seg.start && ct < seg.end - 0.04) {
+                        mediaEl.currentTime = seg.end;
+                        break;
+                    }
+                }
+            };
         }
 
         function renderWaveformCanvas(canvasEl, audioBuffer, silentSegments = []) {
